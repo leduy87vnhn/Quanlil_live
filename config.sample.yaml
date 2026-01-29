@@ -1,0 +1,18 @@
+﻿sheets:
+  spreadsheet_id: "YOUR_SPREADSHEET_ID"
+  read_range: "Sheet1!A1:Z1000"
+  write_range: "Sheet1!A1:Z2"
+  credentials_path: "./service_account.json"
+
+vmix:
+  host: "127.0.0.1"
+  port: 8088
+  input: 1
+
+field_map:
+  Name: SelectedName
+  Score: Value
+
+retries: 3
+backoff_seconds: 1
+polling_seconds: 5
