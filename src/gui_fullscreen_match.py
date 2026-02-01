@@ -238,25 +238,7 @@ class FullScreenMatchGUI(tk.Tk):
             self.match_rows = []
         except Exception:
             pass
-        # After restore, ensure autosave suspended briefly and perform one committed save
-        try:
-            import time
-            # keep autosave suspended a bit longer to avoid races from layout/config callbacks
-            self._autosave_suspended_until = time.time() + 6.0
-        except Exception:
-            pass
-        try:
-            dbg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vmix_debug.log')
-            import datetime
-            with open(dbg, 'a', encoding='utf-8') as df:
-                df.write(f"[{datetime.datetime.now().isoformat()}] RESTORE_COMPLETE: scheduling final committed save\n")
-        except Exception:
-            pass
-        try:
-            # perform one committed autosave now that restore is applied
-            self._auto_save_state()
-        except Exception:
-            pass
+        
         try:
             self._auto_state_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui_state.pkl')
         except Exception:
@@ -272,6 +254,12 @@ class FullScreenMatchGUI(tk.Tk):
         try:
             # used to briefly suspend periodic autosave after restore to avoid overwrite races
             self._autosave_suspended_until = 0
+        except Exception:
+            pass
+        try:
+            # indicate whether a restore has been fully committed to disk
+            # when False, autosave will skip writes until restore finishes
+            self._restore_committed = True
         except Exception:
             pass
         # Attempt to eagerly load saved state so restore runs during widget init
@@ -1319,6 +1307,11 @@ class FullScreenMatchGUI(tk.Tk):
                 s = None
         if not s:
             return
+        # mark restore as in-progress: prevent autosave writes until restore is committed
+        try:
+            self._restore_committed = False
+        except Exception:
+            pass
         # IMMEDIATELY suspend autosave during restore to prevent overwriting restored state
         try:
             import time
@@ -1494,6 +1487,29 @@ class FullScreenMatchGUI(tk.Tk):
                             pass
             except Exception:
                 pass
+        except Exception:
+            pass
+
+        # After restore completed, give layout callbacks time, then mark restore committed
+        try:
+            import time
+            self._autosave_suspended_until = time.time() + 6.0
+        except Exception:
+            pass
+        try:
+            dbg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vmix_debug.log')
+            import datetime
+            with open(dbg, 'a', encoding='utf-8') as df:
+                df.write(f"[{datetime.datetime.now().isoformat()}] RESTORE_COMPLETE: scheduling final committed save\n")
+        except Exception:
+            pass
+        try:
+            # mark restore committed so autosave is allowed and perform a final save
+            try:
+                self._restore_committed = True
+            except Exception:
+                pass
+            self._auto_save_state()
         except Exception:
             pass
 
@@ -1916,6 +1932,9 @@ class FullScreenMatchGUI(tk.Tk):
         """Lưu trạng thái UI (sheet_url, credentials, ban, table rows, header fields) vào file pickle."""
         # Không autosave khi đang khôi phục trạng thái
         if getattr(self, '_restoring_state', False):
+            return
+        # If a restore is in-progress (not yet committed), skip autosave to avoid overwriting
+        if not getattr(self, '_restore_committed', True):
             return
         try:
             state = {}
