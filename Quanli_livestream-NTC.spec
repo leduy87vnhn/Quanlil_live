@@ -5,7 +5,7 @@ a = Analysis(
     ['src\\gui_fullscreen_match.py'],
     pathex=[],
     binaries=[],
-    datas=[('credentials.json', '.')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
