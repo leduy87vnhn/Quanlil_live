@@ -6053,13 +6053,13 @@ class FullScreenMatchGUI(tk.Tk):
             # Luôn để màu chữ tên VĐV là đen
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, vdv_a); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, vdv_b); widgets[3].config(state='readonly', fg='#222831')
-            # Nếu có số bàn từ HBSF, điền vào ô Bàn (widgets[1]) nếu đang trống
+            # Điền tên bàn từ dữ liệu đã tải (Vòng Loại: match_tables_qualifier, Vòng Chính Thức: match_tables_main)
             ban_col = find_col_key(keys, 'Số bàn', 'Ban', 'SoBan')
             if ban_col:
-                ban_val = found.get(ban_col, '')
-                if ban_val and not widgets[1].get().strip():
+                ban_val_from_data = found.get(ban_col, '')
+                if ban_val_from_data:
                     widgets[1].delete(0, 'end')
-                    widgets[1].insert(0, ban_val)
+                    widgets[1].insert(0, ban_val_from_data)
             set_status('')
             if len(widgets) > 8:
                 widgets[-1].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
