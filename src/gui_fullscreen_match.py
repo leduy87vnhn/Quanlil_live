@@ -5908,16 +5908,12 @@ class FullScreenMatchGUI(tk.Tk):
             return
         widgets = self.match_rows[row_idx]
         tran_val = widgets[0].get().strip()
-        ban_val = widgets[1].get().strip()
-        # Kiểm tra trùng số trận hoặc số bàn
+        # Kiểm tra trùng số trận (số bàn không kiểm tra vì nhiều trận có thể dùng chung bàn)
         is_tran_duplicate = False
-        is_ban_duplicate = False
         for i, row in enumerate(self.match_rows):
             if i != row_idx:
                 if row[0].get().strip() == tran_val and tran_val:
                     is_tran_duplicate = True
-                if row[1].get().strip() == ban_val and ban_val:
-                    is_ban_duplicate = True
         def set_status(msg):
             try:
                 self.status_var.set(msg)
@@ -5931,15 +5927,6 @@ class FullScreenMatchGUI(tk.Tk):
             set_status('Số trận đã bị trùng!')
             messagebox.showwarning('Cảnh báo', 'Số trận này đã bị trùng! Vui lòng nhập số khác.')
             widgets[0].focus_set()
-            return
-        if is_ban_duplicate:
-            from tkinter import messagebox
-            widgets[1].delete(0, 'end')
-            widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
-            widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
-            set_status('Số bàn đã bị trùng!')
-            messagebox.showwarning('Cảnh báo', 'Số bàn này đã bị trùng! Vui lòng nhập số khác.')
-            widgets[1].focus_set()
             return
         # Nếu số trận bị trùng thì không lấy tên VĐV, xoá ô tên VĐV
         if hasattr(widgets[0], 'is_duplicate') and widgets[0].is_duplicate:
@@ -6183,8 +6170,10 @@ class FullScreenMatchGUI(tk.Tk):
         self.populate_table()
 
         # Tự động điền tên VĐV cho tất cả hàng đang có số Trận
+        # Xóa ban trước để tránh is_ban_duplicate trigger sai khi nhiều trận cùng bàn
         for i in range(len(self.match_rows)):
             if self.match_rows[i][0].get().strip():
+                self.match_rows[i][1].delete(0, 'end')
                 self.update_vdv_from_tran(i)
 
         count = len(converted)
