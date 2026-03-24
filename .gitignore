@@ -1,0 +1,46 @@
+# Thông tin xác thực - KHÔNG đưa lên GitHub
+credentials.json
+*service_account*.json
+vmix-youtube-*.json
+config.yaml
+
+# File config mẫu được giữ lại: config.sample.yaml
+
+# Build output
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+src/__pycache__/
+tests/__pycache__/
+tools/__pycache__/
+
+# Logs & runtime files
+*.log
+*.log.*
+exe_err*.log
+exe_out*.log
+error_gsheet.log
+vmix_debug.log
+
+# State files
+*.pkl
+ui_state.pkl
+src/ui_state.pkl
+
+# Releases (file zip lớn)
+releases/*.zip
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
