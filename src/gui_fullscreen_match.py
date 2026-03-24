@@ -6054,12 +6054,16 @@ class FullScreenMatchGUI(tk.Tk):
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, vdv_a); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, vdv_b); widgets[3].config(state='readonly', fg='#222831')
             # Điền tên bàn từ dữ liệu đã tải (Vòng Loại: match_tables_qualifier, Vòng Chính Thức: match_tables_main)
-            ban_col = find_col_key(keys, 'Số bàn', 'Ban', 'SoBan')
-            if ban_col:
-                ban_val_from_data = found.get(ban_col, '')
-                if ban_val_from_data:
-                    widgets[1].delete(0, 'end')
-                    widgets[1].insert(0, ban_val_from_data)
+            ban_val_from_data = found.get('Số bàn', '')
+            if not ban_val_from_data:
+                # fallback: thử find_col_key phòng trường hợp key khác
+                ban_col = find_col_key(keys, 'Số bàn', 'Ban', 'SoBan')
+                if ban_col:
+                    ban_val_from_data = found.get(ban_col, '')
+            print(f'DEBUG ban: tran={input_tran_num} ban_val_from_data={ban_val_from_data!r} keys={keys}', file=sys.stderr)
+            widgets[1].delete(0, 'end')
+            if ban_val_from_data:
+                widgets[1].insert(0, ban_val_from_data)
             set_status('')
             if len(widgets) > 8:
                 widgets[-1].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
@@ -6149,11 +6153,20 @@ class FullScreenMatchGUI(tk.Tk):
         # Key 'Trận' = match_idx_actual, 'VĐVA'/'VĐVB' = tên VĐV, 'Số bàn' = tên bàn
         converted = []
         for m in matches:
+            # Ưu tiên table_name từ DB; fallback dùng table_id nếu table_name là null
+            tname = m.get('table_name') or ''
+            if not tname:
+                tid = m.get('table_id')
+                if tid is not None and str(tid).strip() not in ('', '0', 'None'):
+                    try:
+                        tname = f'Bàn {int(float(str(tid)))}'
+                    except (ValueError, TypeError):
+                        pass
             converted.append({
                 'Trận':    str(m.get('match_idx_actual', '')),
                 'VĐVA':    m.get('player_name_a', '') or '',
                 'VĐVB':    m.get('player_name_b', '') or '',
-                'Số bàn':  m.get('table_name', '') or '',
+                'Số bàn':  tname,
             })
 
         self.sheet_rows = converted
