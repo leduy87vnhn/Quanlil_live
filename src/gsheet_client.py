@@ -22,6 +22,10 @@ class GSheetClient:
             rows.append(obj)
         return rows
 
+    def get_metadata(self) -> Dict:
+        sheet = self.service.spreadsheets()
+        return sheet.get(spreadsheetId=self.spreadsheet_id).execute()
+
     def write_table(self, range_name: str, rows: List[List[str]], value_input_option: str = "USER_ENTERED") -> dict:
         # Write the provided rows to the given A1 range using the Sheets API.
         body = {"values": rows}

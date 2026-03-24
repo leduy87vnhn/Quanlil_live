@@ -1,6 +1,7 @@
 import sys, os
-sys.path.insert(0, r'C:\Quanlil_live')
-from gsheet_client import GSheetClient
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.gsheet_client import GSheetClient
 sid='1ACFOmGQDQrAJvFWXJYIEdvhUJJFQC7LViVvt-AHjl-c'
 gs=GSheetClient(sid, 'credentials.json')
 rows=gs.read_table('Kết quả!A1:Z2000')

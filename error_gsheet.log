@@ -1,2 +1,7 @@
-[2026-01-31 18:27:33.044408] No module named 'src'
-[2026-01-31 18:27:36.824656] No module named 'src'
+[2026-03-06 09:35:04.316422] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:35:41.459398] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:35:57.105217] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:41:01.928226] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:41:25.871076] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:44:16.395825] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope
+[2026-03-06 09:58:39.980725] Không đọc được dữ liệu từ các tab đã thử: ['KET QUA', 'Kết quả', 'Ket qua', 'VÒNG LOẠI', 'LOAI TRUC TIEP']. Chi tiết: cannot access free variable 'rows' where it is not associated with a value in enclosing scope

@@ -5,7 +5,7 @@ a = Analysis(
     ['src\\gui_fullscreen_match.py'],
     pathex=[],
     binaries=[],
-    datas=[('credentials.json', '.')],
+    datas=[('src', 'src'), ('credentials.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    manifest='Quanlilive_portable.manifest',
 )

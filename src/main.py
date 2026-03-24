@@ -3,7 +3,7 @@ import os
 import yaml
 from typing import Dict
 from .utils import setup_logging, logger
-from .gsheet_client import GSheetClient
+from src.gsheet_client import GSheetClient
 from .vmix_client import VmixClient
 from .mapper import map_row_to_commands
 from .vmix_parser import extract_fields_from_state

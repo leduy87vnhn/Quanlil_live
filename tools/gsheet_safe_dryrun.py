@@ -2,6 +2,7 @@
 This script avoids calling Google API and only exercises the local filtering logic.
 """
 import sys, os
+import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.gsheet_client import GSheetClient
 
