@@ -5198,7 +5198,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Table header
         header_bg = '#232B3E'
         header_fg = '#FFD369'
-        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa']
+        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi']
         # Đặt width rõ ràng cho cột Trận và Số bàn
         for col, text in enumerate(headers):
             label = tk.Label(self.table_frame, text=text, bg=header_bg, fg=header_fg, font=('Arial', 18, 'bold'), relief='raised', bd=2)
@@ -5222,7 +5222,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Reduce 'Kết quả', 'Điểm số', and 'Địa chỉ vMix' to roughly half their previous horizontal weight
         # Order: Trận, BÀN, Tên A, Tên B, Điểm số, Địa chỉ vMix, Kết quả, Gửi, Sửa
         # Further reduce 'Kết quả' (index 6) per request
-        self.col_weights = [6, 4, 18, 18, 2, 9, 1, 6, 4]
+        self.col_weights = [6, 4, 18, 18, 2, 9, 1, 6, 4, 3]
         self._col_total_weight = sum(self.col_weights)
         for col, weight in enumerate(self.col_weights):
             # Use fixed minsize distribution instead of grid weight-driven expansion
@@ -5568,9 +5568,11 @@ class FullScreenMatchGUI(tk.Tk):
         # Sau khi tạo widgets từng dòng:
         row_bg1 = '#222831'
         row_bg2 = '#393E46'
+        num_rows = self.ban_var.get()
         self.match_rows = []
         self.row_states = []
-        for i in range(self.ban_var.get()):
+        self._row_swap_states = [False] * num_rows
+        for i in range(num_rows):
             widgets = []
             bg = row_bg1 if i % 2 == 0 else row_bg2
             row_state = {'dirty': False}
@@ -5722,7 +5724,8 @@ class FullScreenMatchGUI(tk.Tk):
             btn_preview.grid(row=i+1, column=6, padx=2, pady=2, ipadx=6, ipady=6, sticky='ew')
             widgets.append(btn_preview)
             # Nút Kết quả cập nhật Google Sheet cho từng bàn
-            def update_gsheet_for_row(idx=i):
+            swap_state = [False]  # Trạng thái đảo vị trí VĐV: False = bình thường, True = A↔B
+            def update_gsheet_for_row(idx=i, swap_s=swap_state):
                 """Lấy kết quả từ vMix và đẩy lên web API (tournament_matches hoặc tournament_main_matches)."""
                 try:
                     import requests, xml.etree.ElementTree as ET, re as _re
@@ -5777,16 +5780,28 @@ class FullScreenMatchGUI(tk.Tk):
                     else:
                         api_url = f'{base_url}/api/main-matches/livescore-update/{event_id}'
 
-                    payload = {
-                        'match_idx_actual': match_idx_actual,
-                        'point_A': diem_a,
-                        'point_B': diem_b,
-                        'turn':    lco,
-                        'hr1a':    hr1a,
-                        'hr2a':    hr2a,
-                        'hr1b':    hr1b,
-                        'hr2b':    hr2b,
-                    }
+                    if swap_s[0]:
+                        payload = {
+                            'match_idx_actual': match_idx_actual,
+                            'point_A': diem_b,
+                            'point_B': diem_a,
+                            'turn':    lco,
+                            'hr1a':    hr1b,
+                            'hr2a':    hr2b,
+                            'hr1b':    hr1a,
+                            'hr2b':    hr2a,
+                        }
+                    else:
+                        payload = {
+                            'match_idx_actual': match_idx_actual,
+                            'point_A': diem_a,
+                            'point_B': diem_b,
+                            'turn':    lco,
+                            'hr1a':    hr1a,
+                            'hr2a':    hr2a,
+                            'hr1b':    hr1b,
+                            'hr2b':    hr2b,
+                        }
 
                     api_resp = requests.patch(api_url, json=payload, timeout=5)
 
@@ -5892,6 +5907,31 @@ class FullScreenMatchGUI(tk.Tk):
                 except Exception:
                     set_btn_color(btn, 'fail')
             btn_ketqua.config(command=lambda idx=i, btn=btn_ketqua: on_btn_ketqua(idx, btn))
+
+            # --- Nút Đổi: đảo vị trí VĐV A/B ---
+            btn_doi = tk.Button(self.table_frame, text='Đổi', bg='#9E9E9E', fg='white',
+                                font=('Arial', 18, 'bold'), relief='raised', bd=2, width=4)
+            btn_doi.grid(row=i+1, column=9, padx=2, pady=2, ipadx=0)
+            def on_doi(btn=btn_doi, state=swap_state, ea=e_a, eb=e_b, row_idx=i):
+                state[0] = not state[0]
+                curr_a = ea.get()
+                curr_b = eb.get()
+                ea.config(state='normal', fg='#222831')
+                ea.delete(0, 'end')
+                ea.insert(0, curr_b)
+                ea.config(state='readonly', fg='#222831')
+                eb.config(state='normal', fg='#222831')
+                eb.delete(0, 'end')
+                eb.insert(0, curr_a)
+                eb.config(state='readonly', fg='#222831')
+                if state[0]:
+                    btn.config(bg='#FF5722', text='Đổi ⇄')
+                else:
+                    btn.config(bg='#9E9E9E', text='Đổi')
+                if hasattr(self, '_row_swap_states') and row_idx < len(self._row_swap_states):
+                    self._row_swap_states[row_idx] = state[0]
+            btn_doi.config(command=on_doi)
+            widgets.append(btn_doi)
             # Không còn bôi màu khi click vào ô
             self.match_rows.append(widgets)
             self.row_states.append(row_state)
@@ -5963,8 +6003,8 @@ class FullScreenMatchGUI(tk.Tk):
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
             # Luôn giữ nút Sửa ổn định, không đổi text
-            if len(widgets) > 8:
-                widgets[-1].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 9:
+                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
             return
         # Tìm tên cột linh hoạt, cho phép chọn cột theo tên thực tế
         def find_col_key(keys, *candidates):
@@ -6032,14 +6072,19 @@ class FullScreenMatchGUI(tk.Tk):
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
             set_status('Không tìm thấy trận này trong dữ liệu đã tải!')
-            if len(widgets) > 8:
-                widgets[-1].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 9:
+                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
         else:
             vdv_a = found.get(vdv_a_col, '') if vdv_a_col else ''
             vdv_b = found.get(vdv_b_col, '') if vdv_b_col else ''
             # Luôn để màu chữ tên VĐV là đen
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, vdv_a); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, vdv_b); widgets[3].config(state='readonly', fg='#222831')
+            # Nếu hàng đang ở trạng thái 'Đổi', hoán đổi lại tên VĐV
+            if getattr(self, '_row_swap_states', None) and row_idx < len(self._row_swap_states) and self._row_swap_states[row_idx]:
+                _tmp = widgets[2].get()
+                widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, widgets[3].get()); widgets[2].config(state='readonly', fg='#222831')
+                widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, _tmp); widgets[3].config(state='readonly', fg='#222831')
             # Điền tên bàn từ dữ liệu đã tải (Vòng Loại: match_tables_qualifier, Vòng Chính Thức: match_tables_main)
             ban_val_from_data = found.get('Số bàn', '')
             if not ban_val_from_data:
@@ -6052,8 +6097,8 @@ class FullScreenMatchGUI(tk.Tk):
             if ban_val_from_data:
                 widgets[1].insert(0, ban_val_from_data)
             set_status('')
-            if len(widgets) > 8:
-                widgets[-1].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 9:
+                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
 
     def highlight_row(self, row_idx):
         for i, widgets in enumerate(self.match_rows):
