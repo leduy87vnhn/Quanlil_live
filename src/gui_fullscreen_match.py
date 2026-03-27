@@ -5636,24 +5636,26 @@ class FullScreenMatchGUI(tk.Tk):
                     pass
             e_tran.bind('<FocusIn>', on_focus_in_tran)
             widgets.append(e_tran)
-            # Số bàn (giảm width, căn giữa)
-            e_ban = tk.Entry(self.table_frame, font=('Arial', 18), bg=bg, fg=contrast_fg(bg), relief='groove', bd=2, insertbackground='white', justify='center')
+            # Số bàn — hiển thị dưới dạng nút bấm (nhấn mở popup lịch bàn)
+            _ban_var = tk.StringVar(value='')
             if i < len(old_rows):
-                e_ban.insert(0, old_rows[i][1])
-            # Increase displayed width for 'Bàn' (scaled up)
-            try:
-                e_ban.config(width=8)
-            except Exception:
-                pass
-            e_ban.grid(row=i+1, column=1, padx=2, pady=2, ipadx=6, ipady=6, sticky='ew')
-            # Hiệu ứng dấu nháy trắng khi focus
-            def on_focus_in_ban(event, entry=e_ban):
-                try:
-                    entry.config(insertbackground='white')
-                except:
-                    pass
-            e_ban.bind('<FocusIn>', on_focus_in_ban)
-            widgets.append(e_ban)
+                _ban_var.set(old_rows[i][1])
+            btn_ban = tk.Button(
+                self.table_frame,
+                textvariable=_ban_var,
+                font=('Arial', 14, 'bold'),
+                bg='#1565C0', fg='white',
+                relief='raised', bd=2,
+                width=8,
+            )
+            # Entry-compatible API (các hàm khác gọi .get()/.delete()/.insert() trên widget này)
+            btn_ban.get = lambda v=_ban_var: v.get()
+            btn_ban.delete = lambda s, e, v=_ban_var: v.set('')
+            btn_ban.insert = lambda pos, val, v=_ban_var: v.set(val)
+            btn_ban.config_text = lambda val, v=_ban_var: v.set(val)
+            btn_ban.grid(row=i+1, column=1, padx=2, pady=2, ipadx=4, ipady=6, sticky='ew')
+            btn_ban.config(command=lambda idx=i, b=btn_ban: self.show_table_schedule_popup(b.get(), idx))
+            widgets.append(btn_ban)
             # Tên VĐV A
             e_a = tk.Entry(self.table_frame, font=('Arial', 18), bg=bg, fg='#222831', relief='groove', bd=2)
             if i < len(old_rows):
@@ -5945,6 +5947,16 @@ class FullScreenMatchGUI(tk.Tk):
                     self._row_swap_states[row_idx] = state[0]
             btn_doi.config(command=on_doi)
             widgets.append(btn_doi)
+            # --- Nút Cập nhật bàn ---
+            btn_update_ban = tk.Button(
+                self.table_frame, text='Cập nhật\nbàn',
+                bg='#6A1B9A', fg='white',
+                font=('Arial', 11, 'bold'),
+                relief='raised', bd=2, width=7,
+                command=lambda idx=i: self.update_table_for_row(idx),
+            )
+            btn_update_ban.grid(row=i+1, column=10, padx=2, pady=2, ipadx=0)
+            widgets.append(btn_update_ban)
             # Không còn bôi màu khi click vào ô
             self.match_rows.append(widgets)
             self.row_states.append(row_state)
@@ -6127,6 +6139,181 @@ class FullScreenMatchGUI(tk.Tk):
             if len(widgets) > 9:
                 widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
 
+    def show_table_schedule_popup(self, table_name, row_idx):
+        """Hiển thị popup danh sách trận của một bàn cụ thể."""
+        import tkinter as tk
+        hbsf_data = getattr(self, 'hbsf_match_data', {})
+        if not hbsf_data:
+            from tkinter import messagebox
+            messagebox.showinfo('Thông tin', 'Chưa tải dữ liệu HBSF. Nhấn "Lấy thông tin HBSF" trước.')
+            return
+
+        if table_name:
+            table_matches = [
+                {'match_idx': k, **v}
+                for k, v in hbsf_data.items()
+                if v.get('table_name', '') == table_name
+            ]
+        else:
+            table_matches = [
+                {'match_idx': k, **v}
+                for k, v in hbsf_data.items()
+                if not v.get('table_name', '')
+            ]
+
+        table_matches.sort(key=lambda m: (not m.get('match_time'), m.get('match_time') or ''))
+
+        top = tk.Toplevel(self)
+        top.title(f'Lịch thi đấu – {table_name or "Chưa có bàn"}')
+        top.configure(bg='#1a1a2e')
+        top.geometry('680x440')
+        top.resizable(True, True)
+
+        tk.Label(
+            top,
+            text=f'Lịch thi đấu: {table_name or "Chưa có bàn"}',
+            font=('Arial', 14, 'bold'), bg='#1a1a2e', fg='#FFD369',
+        ).pack(pady=(10, 4))
+
+        container = tk.Frame(top, bg='#1a1a2e')
+        container.pack(fill='both', expand=True, padx=10, pady=4)
+
+        canvas = tk.Canvas(container, bg='#1a1a2e', bd=0, highlightthickness=0)
+        vsb = tk.Scrollbar(container, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+
+        inner = tk.Frame(canvas, bg='#1a1a2e')
+        inner_win = canvas.create_window((0, 0), window=inner, anchor='nw')
+
+        def on_configure(event):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+            canvas.itemconfig(inner_win, width=canvas.winfo_width())
+        inner.bind('<Configure>', on_configure)
+        canvas.bind('<Configure>', lambda e: canvas.itemconfig(inner_win, width=e.width))
+
+        hdrs = ['Trận', 'Giờ', 'VĐV A', 'VĐV B', 'Trạng thái']
+        col_w = [6, 16, 20, 20, 12]
+        for c, (h, w) in enumerate(zip(hdrs, col_w)):
+            tk.Label(
+                inner, text=h, font=('Arial', 10, 'bold'),
+                bg='#2c2c54', fg='#FFD369',
+                width=w, anchor='w', padx=4, pady=4, relief='flat',
+            ).grid(row=0, column=c, sticky='ew', padx=1, pady=1)
+
+        for r, m in enumerate(table_matches):
+            is_done = m.get('winner_id') is not None
+            fg = '#888888' if is_done else '#ffffff'
+            row_bg = '#111122' if r % 2 == 0 else '#1a1a2e'
+            status = '✓ Hoàn thành' if is_done else '⏳ Chờ thi đấu'
+            mtime = m.get('match_time') or ''
+            mtime_disp = mtime[11:16] if len(mtime) >= 16 else mtime
+            vals = [m.get('match_idx', ''), mtime_disp, m.get('player_a', ''), m.get('player_b', ''), status]
+            for c, (v, w) in enumerate(zip(vals, col_w)):
+                tk.Label(
+                    inner, text=str(v), font=('Arial', 10),
+                    bg=row_bg, fg=fg,
+                    width=w, anchor='w', padx=4, pady=3, relief='flat',
+                ).grid(row=r + 1, column=c, sticky='ew', padx=1, pady=0)
+
+        tk.Button(top, text='Đóng', font=('Arial', 11), bg='#555', fg='white',
+                  command=top.destroy).pack(pady=8)
+
+    def update_table_for_row(self, row_idx):
+        """Mở hộp thoại chọn bàn và gửi cập nhật lên API."""
+        import re
+        from tkinter import messagebox
+
+        if not getattr(self, 'hbsf_tables', None):
+            messagebox.showinfo('Thông báo', 'Chưa có danh sách bàn. Nhấn "Lấy thông tin HBSF" trước.')
+            return
+
+        widgets = self.match_rows[row_idx]
+        tran_val = widgets[0].get().strip()
+        if not tran_val:
+            messagebox.showwarning('Cảnh báo', 'Vui lòng nhập số trận trước.')
+            return
+
+        mx = re.search(r'(\d+)', tran_val)
+        if not mx:
+            messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}".')
+            return
+        match_idx_actual = mx.group(1)
+
+        hbsf_data = getattr(self, 'hbsf_match_data', {})
+        match_data = hbsf_data.get(match_idx_actual)
+        if not match_data or match_data.get('id') is None:
+            messagebox.showerror('Lỗi', f'Không tìm thấy dữ liệu trận {tran_val}. Hãy tải lại HBSF.')
+            return
+
+        import tkinter as tk
+        top = tk.Toplevel(self)
+        top.title(f'Chọn bàn cho Trận #{match_idx_actual}')
+        top.configure(bg='#1a1a2e')
+        top.grab_set()
+
+        tk.Label(
+            top,
+            text=f'Chọn bàn cho Trận #{match_idx_actual}',
+            font=('Arial', 13, 'bold'), bg='#1a1a2e', fg='#FFD369',
+        ).pack(pady=(12, 4), padx=16)
+
+        current_table = match_data.get('table_name', '')
+        if current_table:
+            tk.Label(top, text=f'Bàn hiện tại: {current_table}',
+                     font=('Arial', 11), bg='#1a1a2e', fg='#aaaaaa').pack(pady=(0, 8))
+
+        def select_table(table_name):
+            top.destroy()
+            table_map = getattr(self, 'hbsf_table_map', {})
+            table_id = table_map.get(table_name)
+            if not table_id:
+                messagebox.showerror('Lỗi', f'Không tìm thấy ID bàn "{table_name}". Hãy tải lại HBSF.')
+                return
+            try:
+                import requests
+                base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
+                round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
+                match_id = match_data['id']
+                if round_type == 'Vòng Loại':
+                    url = f'{base_url}/api/tournament-matches/match/{match_id}/table'
+                    resp = requests.patch(url, json={'table_id': table_id}, timeout=5)
+                else:
+                    url = f'{base_url}/api/main-matches/match/{match_id}'
+                    resp = requests.patch(url, json={'table_id': table_id}, timeout=5)
+                if resp.status_code == 200:
+                    widgets[1].delete(0, 'end')
+                    widgets[1].insert(0, table_name)
+                    match_data['table_name'] = table_name
+                    self.status_var.set(f'Đã cập nhật bàn {table_name} cho Trận #{match_idx_actual}')
+                    messagebox.showinfo('Thành công', f'Đã cập nhật bàn {table_name} cho Trận #{match_idx_actual}')
+                else:
+                    try:
+                        err_msg = resp.json().get('message', resp.text[:200])
+                    except Exception:
+                        err_msg = resp.text[:200]
+                    messagebox.showerror('Lỗi', f'Lỗi {resp.status_code}: {err_msg}')
+            except Exception as ex:
+                messagebox.showerror('Lỗi kết nối', str(ex))
+
+        btn_frame = tk.Frame(top, bg='#1a1a2e')
+        btn_frame.pack(padx=16, pady=4, fill='x')
+        cols = 2
+        for bidx, tn in enumerate(self.hbsf_tables):
+            r, c = divmod(bidx, cols)
+            tk.Button(
+                btn_frame, text=tn,
+                font=('Arial', 12, 'bold'), bg='#1565C0', fg='white',
+                width=12, pady=7,
+                command=lambda t=tn: select_table(t),
+            ).grid(row=r, column=c, padx=5, pady=4, sticky='ew')
+        for c in range(cols):
+            btn_frame.columnconfigure(c, weight=1)
+
+        tk.Button(top, text='Huỷ', font=('Arial', 11), bg='#555', fg='white',
+                  command=top.destroy).pack(pady=(4, 12))
+
     def highlight_row(self, row_idx):
         for i, widgets in enumerate(self.match_rows):
             for j, w in enumerate(widgets):
@@ -6228,6 +6415,26 @@ class FullScreenMatchGUI(tk.Tk):
                 'Số bàn':  tname,
             })
 
+        # Lưu dữ liệu đầy đủ của từng trận để phục vụ popup và cập nhật bàn
+        self.hbsf_match_data = {}
+        for m in matches:
+            tname = m.get('table_name') or ''
+            if not tname:
+                tid = m.get('table_id')
+                if tid is not None and str(tid).strip() not in ('', '0', 'None'):
+                    try:
+                        tname = f'Bàn {int(float(str(tid)))}'
+                    except (ValueError, TypeError):
+                        pass
+            self.hbsf_match_data[str(m.get('match_idx_actual', ''))] = {
+                'id': m.get('id'),
+                'table_name': tname,
+                'player_a': m.get('player_name_a', '') or '',
+                'player_b': m.get('player_name_b', '') or '',
+                'match_time': m.get('match_time', '') or '',
+                'winner_id': m.get('winner_id'),
+            }
+
         self.sheet_rows = converted
 
         # Lưu danh sách bàn theo thứ tự index từ API (dùng để validate khi nhập số trận)
@@ -6235,6 +6442,8 @@ class FullScreenMatchGUI(tk.Tk):
         if tables_data:
             # Backend mới: trả về danh sách bàn theo index tăng dần
             self.hbsf_tables = [t.get('name', '') for t in tables_data]
+            # Map tên bàn -> id để dùng khi gọi API cập nhật bàn
+            self.hbsf_table_map = {t.get('name', ''): t.get('id') for t in tables_data}
         else:
             # Fallback cho backend cũ: trích xuất thứ tự bàn từ danh sách trận
             # Scheduler xếp bàn xoay vòng nên num_tables trận đầu tiên bao đủ thứ tự
@@ -6248,6 +6457,7 @@ class FullScreenMatchGUI(tk.Tk):
                     if n and len(seen) >= n:
                         break
             self.hbsf_tables = seen
+            self.hbsf_table_map = {}  # Fallback: không có ID bàn
         print(f"[HBSF] hbsf_tables={self.hbsf_tables}", file=sys.stderr)
 
         # Cập nhật Tổng Số Bàn từ server rồi rebuild bảng để đúng số dòng
