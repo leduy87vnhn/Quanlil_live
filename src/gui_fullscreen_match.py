@@ -3730,6 +3730,16 @@ class FullScreenMatchGUI(tk.Tk):
         except Exception:
             pass
 
+    @staticmethod
+    def _safe_widget_get(widget, default='', text_widget=False):
+        """Gọi .get() an toàn, trả về default nếu widget đã bị destroy."""
+        try:
+            if text_widget:
+                return widget.get('1.0', 'end-1c')
+            return widget.get()
+        except Exception:
+            return default
+
     def _auto_save_state(self):
         """Lưu trạng thái UI (sheet_url, credentials, ban, table rows, header fields) vào file pickle."""
         # Không autosave khi đang khôi phục trạng thái
@@ -3739,19 +3749,22 @@ class FullScreenMatchGUI(tk.Tk):
         if not getattr(self, '_restore_committed', True):
             return
         state = {}
-        state['tengiai'] = self.tengiai_var.get() if hasattr(self, 'tengiai_var') else ''
-        state['thoigian'] = self.thoigian_var.get() if hasattr(self, 'thoigian_var') else ''
-        state['diadiem'] = self.diadiem_var.get() if hasattr(self, 'diadiem_var') else ''
-        state['chuchay'] = self.chuchay_var.get() if hasattr(self, 'chuchay_var') else ''
-        state['diemso'] = self.diemso_text.get('1.0', 'end-1c') if hasattr(self, 'diemso_text') else ''
-        state['sheet_url'] = self.url_var.get() if hasattr(self, 'url_var') else ''
+        state['tengiai'] = self._safe_widget_get(self.tengiai_var) if hasattr(self, 'tengiai_var') else ''
+        state['thoigian'] = self._safe_widget_get(self.thoigian_var) if hasattr(self, 'thoigian_var') else ''
+        state['diadiem'] = self._safe_widget_get(self.diadiem_var) if hasattr(self, 'diadiem_var') else ''
+        state['chuchay'] = self._safe_widget_get(self.chuchay_var) if hasattr(self, 'chuchay_var') else ''
+        state['diemso'] = self._safe_widget_get(self.diemso_text, default='', text_widget=True) if hasattr(self, 'diemso_text') else ''
+        state['sheet_url'] = self._safe_widget_get(self.url_var) if hasattr(self, 'url_var') else ''
         state['creds_path'] = self.creds_path if hasattr(self, 'creds_path') else None
         # HBSF fields
-        state['hbsf_url'] = self.hbsf_url_var.get() if hasattr(self, 'hbsf_url_var') else 'https://hbsf.com.vn'
-        state['event_id'] = self.event_id_var.get() if hasattr(self, 'event_id_var') else ''
-        state['round_type'] = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
+        state['hbsf_url'] = self._safe_widget_get(self.hbsf_url_var, default='https://hbsf.com.vn') if hasattr(self, 'hbsf_url_var') else 'https://hbsf.com.vn'
+        state['event_id'] = self._safe_widget_get(self.event_id_var) if hasattr(self, 'event_id_var') else ''
+        state['round_type'] = self._safe_widget_get(self.round_type_var, default='Vòng Loại') if hasattr(self, 'round_type_var') else 'Vòng Loại'
         # Luôn lưu số bàn, kể cả khi là 0 hoặc None
-        state['ban'] = int(self.ban_var.get()) if hasattr(self, 'ban_var') and self.ban_var is not None else 0
+        try:
+            state['ban'] = int(self.ban_var.get()) if hasattr(self, 'ban_var') and self.ban_var is not None else 0
+        except Exception:
+            state['ban'] = 0
         # serialize current table (first 6 columns) for each row
         table = []
         for r in getattr(self, 'match_rows', []):
@@ -3759,7 +3772,7 @@ class FullScreenMatchGUI(tk.Tk):
             for j in range(6):
                 w = r[j]
                 if hasattr(w, 'get'):
-                    rowvals.append(w.get())
+                    rowvals.append(self._safe_widget_get(w))
                 else:
                     rowvals.append('')
             table.append(rowvals)
@@ -6085,17 +6098,31 @@ class FullScreenMatchGUI(tk.Tk):
                 _tmp = widgets[2].get()
                 widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, widgets[3].get()); widgets[2].config(state='readonly', fg='#222831')
                 widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, _tmp); widgets[3].config(state='readonly', fg='#222831')
-            # Điền tên bàn từ dữ liệu đã tải (Vòng Loại: match_tables_qualifier, Vòng Chính Thức: match_tables_main)
+            # Lấy tên bàn mà trận này được xếp vào (từ dữ liệu HBSF)
             ban_val_from_data = found.get('Số bàn', '')
             if not ban_val_from_data:
-                # fallback: thử find_col_key phòng trường hợp key khác
                 ban_col = find_col_key(keys, 'Số bàn', 'Ban', 'SoBan')
                 if ban_col:
                     ban_val_from_data = found.get(ban_col, '')
-            print(f'DEBUG ban: tran={input_tran_num} ban_val_from_data={ban_val_from_data!r} keys={keys}', file=sys.stderr)
-            widgets[1].delete(0, 'end')
-            if ban_val_from_data:
-                widgets[1].insert(0, ban_val_from_data)
+            print(f'DEBUG ban: tran={input_tran_num} ban_val_from_data={ban_val_from_data!r} row_ban={widgets[1].get().strip()!r}', file=sys.stderr)
+            if getattr(self, 'hbsf_tables', None):
+                # Chế độ HBSF: validate bàn của trận phải khớp với bàn của dòng hiện tại
+                row_ban = widgets[1].get().strip()
+                if ban_val_from_data and row_ban and str(ban_val_from_data).strip() != str(row_ban).strip():
+                    from tkinter import messagebox
+                    widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
+                    widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
+                    widgets[0].delete(0, 'end')
+                    set_status(f'Trận #{tran_val} được xếp vào {ban_val_from_data}, không phải {row_ban}!')
+                    messagebox.showwarning('Sai bàn', f'Trận #{tran_val} được xếp vào {ban_val_from_data}, không phải {row_ban}!\nVui lòng nhập số trận đúng với bàn này.')
+                    widgets[0].focus_set()
+                    return
+                # Nếu hợp lệ: giữ nguyên tên bàn đã pre-filled, không ghi đè
+            else:
+                # Chế độ cũ (Google Sheet): điền bàn nếu ô đang trống
+                if ban_val_from_data and not widgets[1].get().strip():
+                    widgets[1].delete(0, 'end')
+                    widgets[1].insert(0, ban_val_from_data)
             set_status('')
             if len(widgets) > 9:
                 widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
@@ -6203,6 +6230,26 @@ class FullScreenMatchGUI(tk.Tk):
 
         self.sheet_rows = converted
 
+        # Lưu danh sách bàn theo thứ tự index từ API (dùng để validate khi nhập số trận)
+        tables_data = data.get('tables', [])
+        if tables_data:
+            # Backend mới: trả về danh sách bàn theo index tăng dần
+            self.hbsf_tables = [t.get('name', '') for t in tables_data]
+        else:
+            # Fallback cho backend cũ: trích xuất thứ tự bàn từ danh sách trận
+            # Scheduler xếp bàn xoay vòng nên num_tables trận đầu tiên bao đủ thứ tự
+            n = int(num_tables) if num_tables else 0
+            seen, seen_set = [], set()
+            for m in converted:
+                tname = m.get('Số bàn', '')
+                if tname and tname not in seen_set:
+                    seen.append(tname)
+                    seen_set.add(tname)
+                    if n and len(seen) >= n:
+                        break
+            self.hbsf_tables = seen
+        print(f"[HBSF] hbsf_tables={self.hbsf_tables}", file=sys.stderr)
+
         # Cập nhật Tổng Số Bàn từ server rồi rebuild bảng để đúng số dòng
         if num_tables is not None and hasattr(self, 'ban_var') and self.ban_var is not None:
             try:
@@ -6214,11 +6261,15 @@ class FullScreenMatchGUI(tk.Tk):
         # Rebuild bảng (cập nhật số dòng và khôi phục giá trị cũ)
         self.populate_table()
 
+        # Pre-fill tên bàn cho từng dòng theo thứ tự index từ HBSF
+        for i, row_widgets in enumerate(self.match_rows):
+            if i < len(self.hbsf_tables) and self.hbsf_tables[i]:
+                row_widgets[1].delete(0, 'end')
+                row_widgets[1].insert(0, self.hbsf_tables[i])
+
         # Tự động điền tên VĐV cho tất cả hàng đang có số Trận
-        # Xóa ban trước để tránh is_ban_duplicate trigger sai khi nhiều trận cùng bàn
         for i in range(len(self.match_rows)):
             if self.match_rows[i][0].get().strip():
-                self.match_rows[i][1].delete(0, 'end')
                 self.update_vdv_from_tran(i)
 
         count = len(converted)

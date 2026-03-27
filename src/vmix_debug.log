@@ -206,3 +206,51 @@
 [2026-03-25T02:45:33.704106] AFTER_POPULATE_TABLE ban_var=6
 [2026-03-25T02:45:33.704418] RESTORE_CALL_END
 [2026-03-25T02:45:34.593205] _on_canvas_configure canvas_width=1903 avail_width=1867 total_padding=36 sizes_sum=1250 sizes=[40, 89, 433, 300, 60, 120, 50, 77, 81]
+[2026-03-27T01:27:48.329303] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-27T01:27:48.505109] RESTORE_CALL_BEGIN
+[2026-03-27T01:27:48.591342] AFTER_RESTORE ban_var=6
+[2026-03-27T01:27:48.643113] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-27T01:27:48.643392] RESTORE_CALL_END
+[2026-03-27T01:27:49.390171] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1283 sizes=[40, 88, 416, 288, 60, 120, 50, 74, 78, 69]
+[2026-03-27T01:32:02.897608] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-27T01:32:02.931827] RESTORE_CALL_BEGIN
+[2026-03-27T01:32:03.006765] AFTER_RESTORE ban_var=6
+[2026-03-27T01:32:03.067451] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-27T01:32:03.067733] RESTORE_CALL_END
+[2026-03-27T01:32:03.890870] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1283 sizes=[40, 88, 416, 288, 60, 120, 50, 74, 78, 69]
+[2026-03-27T01:35:47.715820] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-27T01:35:47.750910] RESTORE_CALL_BEGIN
+[2026-03-27T01:35:47.801390] AFTER_RESTORE ban_var=6
+[2026-03-27T01:35:47.904285] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-27T01:35:47.904776] RESTORE_CALL_END
+[2026-03-27T01:35:49.071000] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T01:38:24.275293] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-27T01:38:24.306505] RESTORE_CALL_BEGIN
+[2026-03-27T01:38:24.332872] AFTER_RESTORE ban_var=6
+[2026-03-27T01:38:24.383167] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-27T01:38:24.383445] RESTORE_CALL_END
+[2026-03-27T01:38:25.083580] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T01:40:25.256030] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=8
+[2026-03-27T01:40:25.291979] RESTORE_CALL_BEGIN
+[2026-03-27T01:40:25.331902] AFTER_RESTORE ban_var=8
+[2026-03-27T01:40:25.418289] AFTER_POPULATE_TABLE ban_var=8
+[2026-03-27T01:40:25.418572] RESTORE_CALL_END
+[2026-03-27T01:40:26.300153] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T01:49:41.991971] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=8
+[2026-03-27T01:49:42.021936] RESTORE_CALL_BEGIN
+[2026-03-27T01:49:42.052038] AFTER_RESTORE ban_var=8
+[2026-03-27T01:49:42.120880] AFTER_POPULATE_TABLE ban_var=8
+[2026-03-27T01:49:42.121193] RESTORE_CALL_END
+[2026-03-27T01:49:42.844915] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T01:51:44.751670] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=8
+[2026-03-27T01:51:44.782134] RESTORE_CALL_BEGIN
+[2026-03-27T01:51:44.822923] AFTER_RESTORE ban_var=8
+[2026-03-27T01:51:44.897898] AFTER_POPULATE_TABLE ban_var=8
+[2026-03-27T01:51:44.898181] RESTORE_CALL_END
+[2026-03-27T01:51:45.633671] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T08:15:32.347446] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=8
+[2026-03-27T08:15:32.392636] RESTORE_CALL_BEGIN
+[2026-03-27T08:15:32.445679] AFTER_RESTORE ban_var=8
+[2026-03-27T08:15:32.556015] AFTER_POPULATE_TABLE ban_var=8
+[2026-03-27T08:15:32.556439] RESTORE_CALL_END
+[2026-03-27T08:15:33.646229] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
