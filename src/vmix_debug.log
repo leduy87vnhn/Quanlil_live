@@ -260,3 +260,9 @@
 [2026-03-27T22:20:00.757171] AFTER_POPULATE_TABLE ban_var=8
 [2026-03-27T22:20:00.757452] RESTORE_CALL_END
 [2026-03-27T22:20:01.497437] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]
+[2026-03-27T23:58:07.698126] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=8
+[2026-03-27T23:58:07.735974] RESTORE_CALL_BEGIN
+[2026-03-27T23:58:07.773418] AFTER_RESTORE ban_var=8
+[2026-03-27T23:58:07.848610] AFTER_POPULATE_TABLE ban_var=8
+[2026-03-27T23:58:07.848892] RESTORE_CALL_END
+[2026-03-27T23:58:08.619705] _on_canvas_configure canvas_width=1903 avail_width=1863 total_padding=40 sizes_sum=1258 sizes=[40, 108, 270, 270, 60, 120, 50, 114, 120, 106]

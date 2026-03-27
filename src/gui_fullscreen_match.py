@@ -5742,33 +5742,33 @@ class FullScreenMatchGUI(tk.Tk):
             swap_state = [False]  # Trạng thái đảo vị trí VĐV: False = bình thường, True = A↔B
             def update_gsheet_for_row(idx=i, swap_s=swap_state):
                 """Lấy kết quả từ vMix và đẩy lên web API (tournament_matches hoặc tournament_main_matches)."""
+                import requests, xml.etree.ElementTree as ET, re as _re
+                row = self.match_rows[idx]
+                tran_val = row[0].get().strip()
+                vmix_url = row[5].get().strip()
+                event_id = self.event_id_var.get().strip() if hasattr(self, 'event_id_var') else ''
+                round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
+                base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
+
+                if not tran_val or not vmix_url:
+                    messagebox.showerror('Lỗi', 'Thiếu thông tin Trận hoặc Địa chỉ vMix!')
+                    return
+                if not event_id or not event_id.isdigit():
+                    messagebox.showerror('Lỗi', 'Chưa nhập Event ID hợp lệ!')
+                    return
+                if not base_url:
+                    messagebox.showerror('Lỗi', 'Chưa nhập URL web (HBSF URL)!')
+                    return
+
+                # Rút số trận (match_idx_actual) từ ô Trận
+                m = _re.search(r'(\d+)', tran_val)
+                if not m:
+                    messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}"!')
+                    return
+                match_idx_actual = int(m.group(1))
+
+                # ---------- Lấy dữ liệu từ vMix ----------
                 try:
-                    import requests, xml.etree.ElementTree as ET, re as _re
-                    row = self.match_rows[idx]
-                    tran_val = row[0].get().strip()
-                    vmix_url = row[5].get().strip()
-                    event_id = self.event_id_var.get().strip() if hasattr(self, 'event_id_var') else ''
-                    round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
-                    base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
-
-                    if not tran_val or not vmix_url:
-                        messagebox.showerror('Lỗi', 'Thiếu thông tin Trận hoặc Địa chỉ vMix!')
-                        return
-                    if not event_id or not event_id.isdigit():
-                        messagebox.showerror('Lỗi', 'Chưa nhập Event ID hợp lệ!')
-                        return
-                    if not base_url:
-                        messagebox.showerror('Lỗi', 'Chưa nhập URL web (HBSF URL)!')
-                        return
-
-                    # Rút số trận (match_idx_actual) từ ô Trận
-                    m = _re.search(r'(\d+)', tran_val)
-                    if not m:
-                        messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}"!')
-                        return
-                    match_idx_actual = int(m.group(1))
-
-                    # ---------- Lấy dữ liệu từ vMix ----------
                     resp = requests.get(f'{vmix_url}/API/', timeout=3)
                     resp.raise_for_status()
                     root = ET.fromstring(resp.text)
@@ -5788,8 +5788,13 @@ class FullScreenMatchGUI(tk.Tk):
                     hr2a   = get_field('HR2A.Text')
                     hr1b   = get_field('HR1B.Text')
                     hr2b   = get_field('HR2B.Text')
+                except Exception as ex:
+                    messagebox.showerror('Lỗi lấy kết quả vMix',
+                                         f'Không lấy được kết quả từ vMix ({vmix_url}):\n{ex}')
+                    return
 
-                    # ---------- Gọi web API ----------
+                # ---------- Gọi web API ----------
+                try:
                     if round_type == 'Vòng Loại':
                         api_url = f'{base_url}/api/tournament-matches/livescore-update/{event_id}'
                     else:
@@ -5846,9 +5851,9 @@ class FullScreenMatchGUI(tk.Tk):
                         except Exception:
                             err_msg = api_resp.text[:200]
                         messagebox.showerror('Lỗi', f'Web trả về lỗi {api_resp.status_code}:\n{err_msg}')
-
                 except Exception as ex:
-                    messagebox.showerror('Lỗi', f'Lỗi cập nhật kết quả lên web: {ex}')
+                    messagebox.showerror('Lỗi đẩy kết quả lên web HBSF',
+                                         f'Không đẩy được kết quả lên web HBSF ({base_url}):\n{ex}')
             # --- Nút Kết quả ---
             btn_ketqua = tk.Button(self.table_frame, text='Kết quả', bg='#00C853', fg='white', font=('Arial', 18, 'bold'),
                                    relief='raised', bd=2, width=10)
