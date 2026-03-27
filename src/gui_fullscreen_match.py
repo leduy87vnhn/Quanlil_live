@@ -5823,7 +5823,7 @@ class FullScreenMatchGUI(tk.Tk):
                             'hr2b':    hr2b,
                         }
 
-                    api_resp = requests.patch(api_url, json=payload, timeout=5)
+                    api_resp = requests.post(api_url, json=payload, timeout=5)
 
                     # Ghi log
                     try:
@@ -5840,9 +5840,29 @@ class FullScreenMatchGUI(tk.Tk):
                         pass
 
                     if api_resp.status_code == 200:
+                        # Kiểm tra response phải là JSON hợp lệ từ backend,
+                        # không phải HTML của SPA (xảy ra khi URL trỏ sai vào frontend)
+                        ct = api_resp.headers.get('Content-Type', '')
+                        if 'application/json' not in ct:
+                            messagebox.showerror(
+                                'Lỗi URL web HBSF',
+                                f'Server trả về HTML thay vì JSON.\n'
+                                f'URL đang gọi: {api_url}\n\n'
+                                f'Có thể HBSF URL đang trỏ vào frontend (port 3000) thay vì backend (port 5000).\n'
+                                f'Hãy kiểm tra lại trường "HBSF URL".'
+                            )
+                            return
+                        try:
+                            resp_json = api_resp.json()
+                        except Exception:
+                            messagebox.showerror(
+                                'Lỗi URL web HBSF',
+                                f'Không parse được JSON từ response.\nURL: {api_url}\nResponse: {api_resp.text[:200]}'
+                            )
+                            return
                         messagebox.showinfo(
                             'Thành công',
-                            f'Đã cập nhật kết quả trận {match_idx_actual} lên web thành công!'
+                            f'Đã cập nhật kết quả trận {match_idx_actual} lên web thành công!\nURL: {api_url}'
                         )
                         self.status_var.set(f'Kết quả trận {match_idx_actual} đã đẩy lên web ({round_type})')
                     else:
@@ -5850,7 +5870,7 @@ class FullScreenMatchGUI(tk.Tk):
                             err_msg = api_resp.json().get('message', api_resp.text[:200])
                         except Exception:
                             err_msg = api_resp.text[:200]
-                        messagebox.showerror('Lỗi', f'Web trả về lỗi {api_resp.status_code}:\n{err_msg}')
+                        messagebox.showerror('Lỗi', f'Web trả về lỗi {api_resp.status_code}:\n{err_msg}\nURL: {api_url}')
                 except Exception as ex:
                     messagebox.showerror('Lỗi đẩy kết quả lên web HBSF',
                                          f'Không đẩy được kết quả lên web HBSF ({base_url}):\n{ex}')
