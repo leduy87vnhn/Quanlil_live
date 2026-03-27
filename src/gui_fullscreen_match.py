@@ -4671,6 +4671,11 @@ class FullScreenMatchGUI(tk.Tk):
                   activebackground='#FFE082', activeforeground='#1A2233').pack(side='left', padx=5)
         event_id_entry.bind('<Return>', lambda e: self.load_hbsf_matches())
 
+        # Button: Xem Log
+        tk.Button(hbsf_frame, text='Xem Log', command=self.show_log_popup,
+                  bg='#546E7A', fg='white', font=('Segoe UI', 12, 'bold'), relief='groove', bd=2,
+                  activebackground='#78909C', activeforeground='white').pack(side='left', padx=5)
+
         # Các biến Google Sheet (giữ lại để tương thích với code lưu trạng thái)
         self.url_var = tk.StringVar()
         self.creds_label = tk.Label(hbsf_frame, text='', fg='#232B3E', bg='#232B3E')  # hidden
@@ -5828,7 +5833,7 @@ class FullScreenMatchGUI(tk.Tk):
                     # Ghi log
                     try:
                         import datetime, os
-                        dbg_path = os.path.join(os.getcwd(), 'vmix_debug.log')
+                        dbg_path = self._log_path()
                         with open(dbg_path, 'a', encoding='utf-8') as df:
                             df.write(
                                 f"[{datetime.datetime.now()}] KETQUA_API "
@@ -6163,6 +6168,128 @@ class FullScreenMatchGUI(tk.Tk):
             set_status('')
             if len(widgets) > 9:
                 widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+
+    def _log_path(self):
+        """Trả về đường dẫn tuyệt đối tới file log, ưu tiên cạnh exe/script."""
+        import os
+        try:
+            base = os.path.dirname(os.path.abspath(__file__))
+        except Exception:
+            base = os.getcwd()
+        return os.path.join(base, 'vmix_debug.log')
+
+    def show_log_popup(self):
+        """Mở popup hiển thị 100 dòng cuối của vmix_debug.log."""
+        import tkinter as tk
+        import os
+
+        log_path = self._log_path()
+        if not os.path.exists(log_path):
+            from tkinter import messagebox
+            messagebox.showinfo('Log', f'Chưa có file log.\nĐường dẫn: {log_path}')
+            return
+
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.readlines()
+        except Exception as ex:
+            from tkinter import messagebox
+            messagebox.showerror('Lỗi', f'Không đọc được log: {ex}')
+            return
+
+        last_lines = lines[-100:]
+
+        top = tk.Toplevel(self)
+        top.title(f'Log — {log_path}')
+        top.configure(bg='#1a1a2e')
+        top.geometry('900x520')
+        top.resizable(True, True)
+
+        header_frame = tk.Frame(top, bg='#1a1a2e')
+        header_frame.pack(fill='x', padx=10, pady=(8, 2))
+        tk.Label(header_frame, text=f'vmix_debug.log  ({len(lines)} dòng, hiển thị {len(last_lines)} dòng cuối)',
+                 font=('Consolas', 10), bg='#1a1a2e', fg='#FFD369').pack(side='left')
+        tk.Button(header_frame, text='Xoá log', font=('Segoe UI', 10),
+                  bg='#b71c1c', fg='white', relief='flat',
+                  command=lambda: self._clear_log(log_path, text_widget)).pack(side='right', padx=4)
+        tk.Button(header_frame, text='Làm mới', font=('Segoe UI', 10),
+                  bg='#1565C0', fg='white', relief='flat',
+                  command=lambda: self._refresh_log(log_path, text_widget)).pack(side='right', padx=4)
+
+        text_frame = tk.Frame(top, bg='#1a1a2e')
+        text_frame.pack(fill='both', expand=True, padx=10, pady=4)
+
+        vsb = tk.Scrollbar(text_frame)
+        vsb.pack(side='right', fill='y')
+        hsb = tk.Scrollbar(text_frame, orient='horizontal')
+        hsb.pack(side='bottom', fill='x')
+
+        text_widget = tk.Text(
+            text_frame, font=('Consolas', 10), bg='#0d1117', fg='#c9d1d9',
+            wrap='none', relief='flat',
+            yscrollcommand=vsb.set, xscrollcommand=hsb.set,
+        )
+        text_widget.pack(fill='both', expand=True)
+        vsb.config(command=text_widget.yview)
+        hsb.config(command=text_widget.xview)
+
+        # Màu dòng theo nội dung
+        text_widget.tag_config('ok',   foreground='#56d364')
+        text_widget.tag_config('err',  foreground='#f85149')
+        text_widget.tag_config('warn', foreground='#e3b341')
+
+        for line in last_lines:
+            if '✅' in line or 'status=200' in line:
+                tag = 'ok'
+            elif '❌' in line or 'ERROR' in line or 'Lỗi' in line:
+                tag = 'err'
+            elif 'rowCount=0' in line or 'WARN' in line:
+                tag = 'warn'
+            else:
+                tag = ''
+            text_widget.insert('end', line, tag)
+
+        text_widget.see('end')
+        text_widget.config(state='disabled')
+
+        tk.Button(top, text='Đóng', font=('Segoe UI', 11), bg='#555', fg='white',
+                  command=top.destroy).pack(pady=6)
+
+    def _refresh_log(self, log_path, text_widget):
+        """Tải lại nội dung log vào text_widget."""
+        import os
+        text_widget.config(state='normal')
+        text_widget.delete('1.0', 'end')
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                    lines = f.readlines()
+                for line in lines[-100:]:
+                    if '✅' in line or 'status=200' in line:
+                        tag = 'ok'
+                    elif '❌' in line or 'Lỗi' in line:
+                        tag = 'err'
+                    elif 'rowCount=0' in line or 'WARN' in line:
+                        tag = 'warn'
+                    else:
+                        tag = ''
+                    text_widget.insert('end', line, tag)
+                text_widget.see('end')
+            except Exception:
+                pass
+        text_widget.config(state='disabled')
+
+    def _clear_log(self, log_path, text_widget):
+        """Xoá toàn bộ nội dung file log."""
+        from tkinter import messagebox
+        if not messagebox.askyesno('Xác nhận', 'Xoá toàn bộ log?'):
+            return
+        try:
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write('')
+            self._refresh_log(log_path, text_widget)
+        except Exception as ex:
+            messagebox.showerror('Lỗi', f'Không xoá được log: {ex}')
 
     def show_table_schedule_popup(self, table_name, row_idx):
         """Hiển thị popup danh sách trận của một bàn cụ thể."""
