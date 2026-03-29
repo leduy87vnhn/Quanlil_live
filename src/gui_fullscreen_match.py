@@ -480,6 +480,19 @@ class FullScreenMatchGUI(tk.Tk):
             self._restore_committed = True
         except Exception:
             pass
+        try:
+            # Auto-run interval for per-row "Kết quả" logic (configurable in code).
+            self.auto_ketqua_interval_ms = 5000
+            self._auto_ketqua_enabled = True
+            self._auto_ketqua_running = False
+        except Exception:
+            pass
+        try:
+            self._send_blink_rows = set()
+            self._send_blink_phase = False
+            self._send_blink_job = None
+        except Exception:
+            pass
         # Attempt to eagerly load saved state so restore runs during widget init
         try:
             import pickle
@@ -5216,7 +5229,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Table header
         header_bg = '#232B3E'
         header_fg = '#FFD369'
-        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi']
+        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi', 'Vị Trí', 'Cập nhật bàn']
         # Đặt width rõ ràng cho cột Trận và Số bàn
         for col, text in enumerate(headers):
             label = tk.Label(self.table_frame, text=text, bg=header_bg, fg=header_fg, font=('Arial', 18, 'bold'), relief='raised', bd=2)
@@ -5240,7 +5253,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Reduce 'Kết quả', 'Điểm số', and 'Địa chỉ vMix' to roughly half their previous horizontal weight
         # Order: Trận, BÀN, Tên A, Tên B, Điểm số, Địa chỉ vMix, Kết quả, Gửi, Sửa
         # Further reduce 'Kết quả' (index 6) per request
-        self.col_weights = [6, 4, 18, 18, 2, 9, 1, 6, 4, 3]
+        self.col_weights = [6, 4, 16, 16, 2, 8, 2, 5, 4, 3, 3, 4]
         self._col_total_weight = sum(self.col_weights)
         for col, weight in enumerate(self.col_weights):
             # Use fixed minsize distribution instead of grid weight-driven expansion
@@ -5289,6 +5302,10 @@ class FullScreenMatchGUI(tk.Tk):
         # schedule periodic autosave after restore to avoid overwriting restored values
         try:
             self.after(5000, self._periodic_autosave)
+        except Exception:
+            pass
+        try:
+            self.after(int(getattr(self, 'auto_ketqua_interval_ms', 5000)), self._auto_ketqua_tick)
         except Exception:
             pass
 
@@ -5568,6 +5585,267 @@ class FullScreenMatchGUI(tk.Tk):
                 w.destroy()
         self.match_rows.clear()
 
+    def _normalize_name_for_compare(self, value):
+        import re
+        import unicodedata
+        s = '' if value is None else str(value)
+        s = unicodedata.normalize('NFD', s)
+        s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+        s = s.lower().strip()
+        s = re.sub(r'\s+', ' ', s)
+        return s
+
+    def _set_row_position(self, row_idx, swapped):
+        try:
+            if hasattr(self, '_row_swap_states') and row_idx < len(self._row_swap_states):
+                self._row_swap_states[row_idx] = bool(swapped)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, '_row_position_vars') and row_idx < len(self._row_position_vars):
+                self._row_position_vars[row_idx].set('Ngược' if swapped else 'Thuận')
+        except Exception:
+            pass
+        try:
+            if hasattr(self, '_row_swap_buttons') and row_idx < len(self._row_swap_buttons):
+                btn = self._row_swap_buttons[row_idx]
+                if btn is not None:
+                    if swapped:
+                        btn.config(bg='#FF5722', text='Đổi ⇄')
+                    else:
+                        btn.config(bg='#9E9E9E', text='Đổi')
+        except Exception:
+            pass
+
+    def _toggle_row_swap(self, row_idx):
+        if row_idx < 0 or row_idx >= len(self.match_rows):
+            return
+        widgets = self.match_rows[row_idx]
+        if len(widgets) < 4:
+            return
+        ea = widgets[2]
+        eb = widgets[3]
+        curr_a = ea.get()
+        curr_b = eb.get()
+        ea.config(state='normal', fg='#222831')
+        ea.delete(0, 'end')
+        ea.insert(0, curr_b)
+        ea.config(state='readonly', fg='#222831')
+        eb.config(state='normal', fg='#222831')
+        eb.delete(0, 'end')
+        eb.insert(0, curr_a)
+        eb.config(state='readonly', fg='#222831')
+        current = False
+        try:
+            if hasattr(self, '_row_swap_states') and row_idx < len(self._row_swap_states):
+                current = bool(self._row_swap_states[row_idx])
+        except Exception:
+            pass
+        self._set_row_position(row_idx, not current)
+
+    def _fetch_vmix_livescore_data(self, vmix_url):
+        import requests
+        import xml.etree.ElementTree as ET
+        resp = requests.get(f'{vmix_url}/API/', timeout=3)
+        resp.raise_for_status()
+        root = ET.fromstring(resp.text)
+        input1 = root.find(".//input[@number='1']")
+
+        def get_field(name):
+            if input1 is not None:
+                for text in input1.findall('text'):
+                    if text.attrib.get('name') == name:
+                        return (text.text or '').strip()
+            return ''
+
+        return {
+            'ten_a': get_field('TenA.Text'),
+            'ten_b': get_field('TenB.Text'),
+            'diem_a': get_field('DiemA.Text'),
+            'diem_b': get_field('DiemB.Text'),
+            'lco': get_field('Lco.Text'),
+            'hr1a': get_field('HR1A.Text'),
+            'hr2a': get_field('HR2A.Text'),
+            'hr1b': get_field('HR1B.Text'),
+            'hr2b': get_field('HR2B.Text'),
+        }
+
+    def _post_row_livescore(self, row_idx, vmix_data, silent=False):
+        import datetime
+        import requests
+        import re as _re
+
+        row = self.match_rows[row_idx]
+        tran_val = row[0].get().strip()
+        event_id = self.event_id_var.get().strip() if hasattr(self, 'event_id_var') else ''
+        round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
+        base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
+        if not tran_val or not event_id or not event_id.isdigit() or not base_url:
+            return False
+        m = _re.search(r'(\d+)', tran_val)
+        if not m:
+            return False
+        match_idx_actual = int(m.group(1))
+        if round_type == 'Vòng Loại':
+            api_url = f'{base_url}/api/tournament-matches/livescore-update/{event_id}'
+            payload = {'match_idx_actual': match_idx_actual}
+        else:
+            api_url = f'{base_url}/api/main-matches/livescore-update/{event_id}'
+            payload = {'match_idx': match_idx_actual}
+
+        swapped = bool(getattr(self, '_row_swap_states', [False] * len(self.match_rows))[row_idx])
+        if swapped:
+            payload.update({
+                'point_A': vmix_data['diem_b'],
+                'point_B': vmix_data['diem_a'],
+                'turn': vmix_data['lco'],
+                'hr1a': vmix_data['hr1b'],
+                'hr2a': vmix_data['hr2b'],
+                'hr1b': vmix_data['hr1a'],
+                'hr2b': vmix_data['hr2a'],
+            })
+        else:
+            payload.update({
+                'point_A': vmix_data['diem_a'],
+                'point_B': vmix_data['diem_b'],
+                'turn': vmix_data['lco'],
+                'hr1a': vmix_data['hr1a'],
+                'hr2a': vmix_data['hr2a'],
+                'hr1b': vmix_data['hr1b'],
+                'hr2b': vmix_data['hr2b'],
+            })
+
+        resp = requests.post(api_url, json=payload, timeout=5)
+        try:
+            dbg_path = self._log_path()
+            with open(dbg_path, 'a', encoding='utf-8') as df:
+                df.write(
+                    f"[{datetime.datetime.now()}] KETQUA_API row={row_idx} "
+                    f"tran={match_idx_actual} round={round_type} "
+                    f"url={api_url} status={resp.status_code} payload={payload} resp={resp.text[:200]}\n"
+                )
+        except Exception:
+            pass
+        if resp.status_code != 200:
+            return False
+        if not silent:
+            self.status_var.set(f'Kết quả trận {match_idx_actual} đã đẩy lên web ({round_type})')
+        return True
+
+    def _run_ketqua_logic_for_row(self, row_idx, silent=False, show_name_mismatch_popup=True):
+        from tkinter import messagebox
+        if row_idx < 0 or row_idx >= len(self.match_rows):
+            return False
+        row = self.match_rows[row_idx]
+        tran_val = row[0].get().strip() if len(row) > 0 else ''
+        vmix_url = row[5].get().strip() if len(row) > 5 else ''
+        if not tran_val or not vmix_url:
+            return False
+        try:
+            vmix_data = self._fetch_vmix_livescore_data(vmix_url)
+        except Exception as ex:
+            if not silent:
+                messagebox.showerror('Lỗi lấy kết quả vMix', f'Không lấy được kết quả từ vMix ({vmix_url}):\n{ex}')
+            return False
+
+        screen_a = row[2].get().strip() if len(row) > 2 else ''
+        screen_b = row[3].get().strip() if len(row) > 3 else ''
+        vmix_a = vmix_data.get('ten_a', '').strip()
+        vmix_b = vmix_data.get('ten_b', '').strip()
+
+        n_screen_a = self._normalize_name_for_compare(screen_a)
+        n_screen_b = self._normalize_name_for_compare(screen_b)
+        n_vmix_a = self._normalize_name_for_compare(vmix_a)
+        n_vmix_b = self._normalize_name_for_compare(vmix_b)
+
+        if n_vmix_a and n_vmix_b and n_screen_a and n_screen_b:
+            if n_vmix_a == n_screen_b and n_vmix_b == n_screen_a:
+                self._toggle_row_swap(row_idx)
+            elif not (n_vmix_a == n_screen_a and n_vmix_b == n_screen_b):
+                if show_name_mismatch_popup and not silent:
+                    messagebox.showwarning('Tên vận động viên không khớp', 'Tên vận động viên không khớp')
+                return False
+        else:
+            if show_name_mismatch_popup and not silent:
+                messagebox.showwarning('Tên vận động viên không khớp', 'Tên vận động viên không khớp')
+            return False
+
+        try:
+            return self._post_row_livescore(row_idx, vmix_data, silent=silent)
+        except Exception as ex:
+            if not silent:
+                messagebox.showerror('Lỗi đẩy kết quả lên web HBSF', str(ex))
+            return False
+
+    def _stop_send_blink(self, row_idx):
+        try:
+            self._send_blink_rows.discard(row_idx)
+        except Exception:
+            pass
+        if row_idx < len(self.match_rows):
+            try:
+                btn = self.match_rows[row_idx][7]
+                btn.config(bg='#00C853', fg='white', text='Gửi')
+            except Exception:
+                pass
+        if not getattr(self, '_send_blink_rows', set()):
+            try:
+                if getattr(self, '_send_blink_job', None):
+                    self.after_cancel(self._send_blink_job)
+            except Exception:
+                pass
+            self._send_blink_job = None
+
+    def _mark_send_needs_refresh(self, row_idx):
+        try:
+            self._send_blink_rows.add(row_idx)
+        except Exception:
+            return
+        if not getattr(self, '_send_blink_job', None):
+            self._blink_send_buttons_tick()
+
+    def _blink_send_buttons_tick(self):
+        if not hasattr(self, '_send_blink_rows'):
+            return
+        self._send_blink_phase = not getattr(self, '_send_blink_phase', False)
+        bad_rows = []
+        for idx in list(self._send_blink_rows):
+            if idx >= len(self.match_rows):
+                bad_rows.append(idx)
+                continue
+            try:
+                btn = self.match_rows[idx][7]
+                if self._send_blink_phase:
+                    btn.config(bg='#D50000', fg='white', text='Gửi !')
+                else:
+                    btn.config(bg='#8E0000', fg='white', text='Gửi !')
+            except Exception:
+                bad_rows.append(idx)
+        for idx in bad_rows:
+            self._send_blink_rows.discard(idx)
+        if self._send_blink_rows:
+            self._send_blink_job = self.after(450, self._blink_send_buttons_tick)
+        else:
+            self._send_blink_job = None
+
+    def _auto_ketqua_tick(self):
+        try:
+            if not getattr(self, '_auto_ketqua_enabled', True):
+                return
+            if getattr(self, '_auto_ketqua_running', False):
+                return
+            self._auto_ketqua_running = True
+            for idx in range(len(getattr(self, 'match_rows', []))):
+                self._run_ketqua_logic_for_row(idx, silent=True, show_name_mismatch_popup=False)
+        except Exception:
+            pass
+        finally:
+            self._auto_ketqua_running = False
+            try:
+                self.after(int(getattr(self, 'auto_ketqua_interval_ms', 5000)), self._auto_ketqua_tick)
+            except Exception:
+                pass
+
     def populate_table(self):
         # Lưu lại toàn bộ giá trị các ô cũ nếu có
         old_rows = []
@@ -5590,6 +5868,12 @@ class FullScreenMatchGUI(tk.Tk):
         self.match_rows = []
         self.row_states = []
         self._row_swap_states = [False] * num_rows
+        self._row_position_vars = []
+        self._row_swap_buttons = [None] * num_rows
+        try:
+            self._send_blink_rows = set()
+        except Exception:
+            pass
         for i in range(num_rows):
             widgets = []
             bg = row_bg1 if i % 2 == 0 else row_bg2
@@ -5623,6 +5907,10 @@ class FullScreenMatchGUI(tk.Tk):
             # Reduce internal padding and character width to make the column visually narrower
             e_tran.config(width=4)
             e_tran.grid(row=i+1, column=0, padx=2, pady=2, ipadx=0, ipady=6, sticky='ew')
+            try:
+                e_tran._prev_tran_value = e_tran.get().strip()
+            except Exception:
+                pass
             e_tran.bind('<Return>', lambda event, idx=i: self.update_vdv_from_tran(idx))
             e_tran.bind('<FocusOut>', lambda event, idx=i: self.update_vdv_from_tran(idx))
             # Khi bấm Tab, chuyển xuống ô Trận dòng tiếp theo
@@ -5743,142 +6031,9 @@ class FullScreenMatchGUI(tk.Tk):
             btn_preview = tk.Button(self.table_frame, text='Gửi Preview', command=send_vmix_to_preview, bg='#00B0FF', fg='#000')
             btn_preview.grid(row=i+1, column=6, padx=2, pady=2, ipadx=6, ipady=6, sticky='ew')
             widgets.append(btn_preview)
-            # Nút Kết quả cập nhật Google Sheet cho từng bàn
+            # Nút Kết quả cập nhật web cho từng bàn
             swap_state = [False]  # Trạng thái đảo vị trí VĐV: False = bình thường, True = A↔B
-            def update_gsheet_for_row(idx=i, swap_s=swap_state):
-                """Lấy kết quả từ vMix và đẩy lên web API (tournament_matches hoặc tournament_main_matches)."""
-                import requests, xml.etree.ElementTree as ET, re as _re
-                row = self.match_rows[idx]
-                tran_val = row[0].get().strip()
-                vmix_url = row[5].get().strip()
-                event_id = self.event_id_var.get().strip() if hasattr(self, 'event_id_var') else ''
-                round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
-                base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
-
-                if not tran_val or not vmix_url:
-                    messagebox.showerror('Lỗi', 'Thiếu thông tin Trận hoặc Địa chỉ vMix!')
-                    return
-                if not event_id or not event_id.isdigit():
-                    messagebox.showerror('Lỗi', 'Chưa nhập Event ID hợp lệ!')
-                    return
-                if not base_url:
-                    messagebox.showerror('Lỗi', 'Chưa nhập URL web (HBSF URL)!')
-                    return
-
-                # Rút số trận (match_idx_actual) từ ô Trận
-                m = _re.search(r'(\d+)', tran_val)
-                if not m:
-                    messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}"!')
-                    return
-                match_idx_actual = int(m.group(1))
-
-                # ---------- Lấy dữ liệu từ vMix ----------
-                try:
-                    resp = requests.get(f'{vmix_url}/API/', timeout=3)
-                    resp.raise_for_status()
-                    root = ET.fromstring(resp.text)
-                    input1 = root.find(".//input[@number='1']")
-
-                    def get_field(name):
-                        if input1 is not None:
-                            for text in input1.findall('text'):
-                                if text.attrib.get('name') == name:
-                                    return (text.text or '').strip()
-                        return ''
-
-                    diem_a = get_field('DiemA.Text')
-                    diem_b = get_field('DiemB.Text')
-                    lco    = get_field('Lco.Text')
-                    hr1a   = get_field('HR1A.Text')
-                    hr2a   = get_field('HR2A.Text')
-                    hr1b   = get_field('HR1B.Text')
-                    hr2b   = get_field('HR2B.Text')
-                except Exception as ex:
-                    messagebox.showerror('Lỗi lấy kết quả vMix',
-                                         f'Không lấy được kết quả từ vMix ({vmix_url}):\n{ex}')
-                    return
-
-                # ---------- Gọi web API ----------
-                try:
-                    if round_type == 'Vòng Loại':
-                        api_url = f'{base_url}/api/tournament-matches/livescore-update/{event_id}'
-                    else:
-                        api_url = f'{base_url}/api/main-matches/livescore-update/{event_id}'
-
-                    if swap_s[0]:
-                        payload = {
-                            'match_idx_actual': match_idx_actual,
-                            'point_A': diem_b,
-                            'point_B': diem_a,
-                            'turn':    lco,
-                            'hr1a':    hr1b,
-                            'hr2a':    hr2b,
-                            'hr1b':    hr1a,
-                            'hr2b':    hr2a,
-                        }
-                    else:
-                        payload = {
-                            'match_idx_actual': match_idx_actual,
-                            'point_A': diem_a,
-                            'point_B': diem_b,
-                            'turn':    lco,
-                            'hr1a':    hr1a,
-                            'hr2a':    hr2a,
-                            'hr1b':    hr1b,
-                            'hr2b':    hr2b,
-                        }
-
-                    api_resp = requests.post(api_url, json=payload, timeout=5)
-
-                    # Ghi log
-                    try:
-                        import datetime, os
-                        dbg_path = self._log_path()
-                        with open(dbg_path, 'a', encoding='utf-8') as df:
-                            df.write(
-                                f"[{datetime.datetime.now()}] KETQUA_API "
-                                f"tran={match_idx_actual} round={round_type} "
-                                f"url={api_url} status={api_resp.status_code} "
-                                f"payload={payload} resp={api_resp.text[:200]}\n"
-                            )
-                    except Exception:
-                        pass
-
-                    if api_resp.status_code == 200:
-                        # Kiểm tra response phải là JSON hợp lệ từ backend,
-                        # không phải HTML của SPA (xảy ra khi URL trỏ sai vào frontend)
-                        ct = api_resp.headers.get('Content-Type', '')
-                        if 'application/json' not in ct:
-                            messagebox.showerror(
-                                'Lỗi URL web HBSF',
-                                f'Server trả về HTML thay vì JSON.\n'
-                                f'URL đang gọi: {api_url}\n\n'
-                                f'Có thể HBSF URL đang trỏ vào frontend (port 3000) thay vì backend (port 5000).\n'
-                                f'Hãy kiểm tra lại trường "HBSF URL".'
-                            )
-                            return
-                        try:
-                            resp_json = api_resp.json()
-                        except Exception:
-                            messagebox.showerror(
-                                'Lỗi URL web HBSF',
-                                f'Không parse được JSON từ response.\nURL: {api_url}\nResponse: {api_resp.text[:200]}'
-                            )
-                            return
-                        messagebox.showinfo(
-                            'Thành công',
-                            f'Đã cập nhật kết quả trận {match_idx_actual} lên web thành công!\nURL: {api_url}'
-                        )
-                        self.status_var.set(f'Kết quả trận {match_idx_actual} đã đẩy lên web ({round_type})')
-                    else:
-                        try:
-                            err_msg = api_resp.json().get('message', api_resp.text[:200])
-                        except Exception:
-                            err_msg = api_resp.text[:200]
-                        messagebox.showerror('Lỗi', f'Web trả về lỗi {api_resp.status_code}:\n{err_msg}\nURL: {api_url}')
-                except Exception as ex:
-                    messagebox.showerror('Lỗi đẩy kết quả lên web HBSF',
-                                         f'Không đẩy được kết quả lên web HBSF ({base_url}):\n{ex}')
+            self._set_row_position(i, swap_state[0])
             # --- Nút Kết quả ---
             btn_ketqua = tk.Button(self.table_frame, text='Kết quả', bg='#00C853', fg='white', font=('Arial', 18, 'bold'),
                                    relief='raised', bd=2, width=10)
@@ -5937,9 +6092,10 @@ class FullScreenMatchGUI(tk.Tk):
 
             # --- Nút Gửi: gửi xong đổi màu ---
             def on_push_to_vmix(idx=i, btn=btn_gui):
+                self._stop_send_blink(idx)
                 try:
                     self.push_to_vmix(idx)
-                    set_btn_color(btn, 'success')
+                    set_btn_color(btn, 'pending')
                 except Exception:
                     set_btn_color(btn, 'fail')
             btn_gui.config(command=lambda idx=i, btn=btn_gui: on_push_to_vmix(idx, btn))
@@ -5947,8 +6103,8 @@ class FullScreenMatchGUI(tk.Tk):
             # --- Nút Kết quả: gửi xong đổi màu ---
             def on_btn_ketqua(idx=i, btn=btn_ketqua):
                 try:
-                    update_gsheet_for_row(idx)
-                    set_btn_color(btn, 'success')
+                    ok = self._run_ketqua_logic_for_row(idx, silent=False, show_name_mismatch_popup=True)
+                    set_btn_color(btn, 'success' if ok else 'fail')
                 except Exception:
                     set_btn_color(btn, 'fail')
             btn_ketqua.config(command=lambda idx=i, btn=btn_ketqua: on_btn_ketqua(idx, btn))
@@ -5957,26 +6113,23 @@ class FullScreenMatchGUI(tk.Tk):
             btn_doi = tk.Button(self.table_frame, text='Đổi', bg='#9E9E9E', fg='white',
                                 font=('Arial', 18, 'bold'), relief='raised', bd=2, width=4)
             btn_doi.grid(row=i+1, column=9, padx=2, pady=2, ipadx=0)
-            def on_doi(btn=btn_doi, state=swap_state, ea=e_a, eb=e_b, row_idx=i):
-                state[0] = not state[0]
-                curr_a = ea.get()
-                curr_b = eb.get()
-                ea.config(state='normal', fg='#222831')
-                ea.delete(0, 'end')
-                ea.insert(0, curr_b)
-                ea.config(state='readonly', fg='#222831')
-                eb.config(state='normal', fg='#222831')
-                eb.delete(0, 'end')
-                eb.insert(0, curr_a)
-                eb.config(state='readonly', fg='#222831')
-                if state[0]:
-                    btn.config(bg='#FF5722', text='Đổi ⇄')
-                else:
-                    btn.config(bg='#9E9E9E', text='Đổi')
-                if hasattr(self, '_row_swap_states') and row_idx < len(self._row_swap_states):
-                    self._row_swap_states[row_idx] = state[0]
+            self._row_swap_buttons[i] = btn_doi
+            def on_doi(row_idx=i):
+                self._toggle_row_swap(row_idx)
             btn_doi.config(command=on_doi)
             widgets.append(btn_doi)
+            # --- Cột Vị Trí ---
+            pos_var = tk.StringVar(value='Thuận')
+            pos_lbl = tk.Label(
+                self.table_frame,
+                textvariable=pos_var,
+                font=('Arial', 13, 'bold'),
+                bg='#0D47A1', fg='white',
+                relief='raised', bd=2, width=8,
+            )
+            pos_lbl.grid(row=i+1, column=10, padx=2, pady=2, ipadx=2, ipady=8, sticky='ew')
+            self._row_position_vars.append(pos_var)
+            widgets.append(pos_lbl)
             # --- Nút Cập nhật bàn ---
             btn_update_ban = tk.Button(
                 self.table_frame, text='Cập nhật\nbàn',
@@ -5985,8 +6138,9 @@ class FullScreenMatchGUI(tk.Tk):
                 relief='raised', bd=2, width=7,
                 command=lambda idx=i: self.update_table_for_row(idx),
             )
-            btn_update_ban.grid(row=i+1, column=10, padx=2, pady=2, ipadx=0)
+            btn_update_ban.grid(row=i+1, column=11, padx=2, pady=2, ipadx=0)
             widgets.append(btn_update_ban)
+            self._set_row_position(i, swap_state[0])
             # Không còn bôi màu khi click vào ô
             self.match_rows.append(widgets)
             self.row_states.append(row_state)
@@ -6003,6 +6157,16 @@ class FullScreenMatchGUI(tk.Tk):
             return
         widgets = self.match_rows[row_idx]
         tran_val = widgets[0].get().strip()
+        try:
+            prev_tran = getattr(widgets[0], '_prev_tran_value', tran_val)
+            if tran_val != prev_tran:
+                if tran_val:
+                    self._mark_send_needs_refresh(row_idx)
+                else:
+                    self._stop_send_blink(row_idx)
+                widgets[0]._prev_tran_value = tran_val
+        except Exception:
+            pass
         # Kiểm tra trùng số trận (số bàn không kiểm tra vì nhiều trận có thể dùng chung bàn)
         is_tran_duplicate = False
         for i, row in enumerate(self.match_rows):
@@ -6017,6 +6181,11 @@ class FullScreenMatchGUI(tk.Tk):
         if is_tran_duplicate:
             from tkinter import messagebox
             widgets[0].delete(0, 'end')
+            try:
+                widgets[0]._prev_tran_value = ''
+            except Exception:
+                pass
+            self._stop_send_blink(row_idx)
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
             set_status('Số trận đã bị trùng!')
@@ -6058,8 +6227,8 @@ class FullScreenMatchGUI(tk.Tk):
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
             # Luôn giữ nút Sửa ổn định, không đổi text
-            if len(widgets) > 9:
-                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 8:
+                widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
             return
         # Tìm tên cột linh hoạt, cho phép chọn cột theo tên thực tế
         def find_col_key(keys, *candidates):
@@ -6127,8 +6296,8 @@ class FullScreenMatchGUI(tk.Tk):
             widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].config(state='readonly', fg='#222831')
             widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].config(state='readonly', fg='#222831')
             set_status('Không tìm thấy trận này trong dữ liệu đã tải!')
-            if len(widgets) > 9:
-                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 8:
+                widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
         else:
             vdv_a = found.get(vdv_a_col, '') if vdv_a_col else ''
             vdv_b = found.get(vdv_b_col, '') if vdv_b_col else ''
@@ -6140,6 +6309,10 @@ class FullScreenMatchGUI(tk.Tk):
                 _tmp = widgets[2].get()
                 widgets[2].config(state='normal', fg='#222831'); widgets[2].delete(0, 'end'); widgets[2].insert(0, widgets[3].get()); widgets[2].config(state='readonly', fg='#222831')
                 widgets[3].config(state='normal', fg='#222831'); widgets[3].delete(0, 'end'); widgets[3].insert(0, _tmp); widgets[3].config(state='readonly', fg='#222831')
+            try:
+                self._set_row_position(row_idx, bool(getattr(self, '_row_swap_states', [False])[row_idx]))
+            except Exception:
+                pass
             # Lấy tên bàn mà trận này được xếp vào (từ dữ liệu HBSF)
             ban_val_from_data = found.get('Số bàn', '')
             if not ban_val_from_data:
@@ -6166,8 +6339,8 @@ class FullScreenMatchGUI(tk.Tk):
                     widgets[1].delete(0, 'end')
                     widgets[1].insert(0, ban_val_from_data)
             set_status('')
-            if len(widgets) > 9:
-                widgets[9].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            if len(widgets) > 8:
+                widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
 
     def _log_path(self):
         """Trả về đường dẫn tuyệt đối tới file log, ưu tiên cạnh exe/script."""
@@ -6373,98 +6546,67 @@ class FullScreenMatchGUI(tk.Tk):
                   command=top.destroy).pack(pady=8)
 
     def update_table_for_row(self, row_idx):
-        """Mở hộp thoại chọn bàn và gửi cập nhật lên API."""
+        """Gửi trực tiếp số trận + tên bàn lên web để cập nhật table_id nếu trận chưa có bàn."""
         import re
-        from tkinter import messagebox
+        try:
+            import requests
+            widgets = self.match_rows[row_idx]
+            tran_val = widgets[0].get().strip()
+            table_name = widgets[1].get().strip()
+            base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
+            event_id = self.event_id_var.get().strip() if hasattr(self, 'event_id_var') else ''
+            round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
 
-        if not getattr(self, 'hbsf_tables', None):
-            messagebox.showinfo('Thông báo', 'Chưa có danh sách bàn. Nhấn "Lấy thông tin HBSF" trước.')
-            return
-
-        widgets = self.match_rows[row_idx]
-        tran_val = widgets[0].get().strip()
-        if not tran_val:
-            messagebox.showwarning('Cảnh báo', 'Vui lòng nhập số trận trước.')
-            return
-
-        mx = re.search(r'(\d+)', tran_val)
-        if not mx:
-            messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}".')
-            return
-        match_idx_actual = mx.group(1)
-
-        hbsf_data = getattr(self, 'hbsf_match_data', {})
-        match_data = hbsf_data.get(match_idx_actual)
-        if not match_data or match_data.get('id') is None:
-            messagebox.showerror('Lỗi', f'Không tìm thấy dữ liệu trận {tran_val}. Hãy tải lại HBSF.')
-            return
-
-        import tkinter as tk
-        top = tk.Toplevel(self)
-        top.title(f'Chọn bàn cho Trận #{match_idx_actual}')
-        top.configure(bg='#1a1a2e')
-        top.grab_set()
-
-        tk.Label(
-            top,
-            text=f'Chọn bàn cho Trận #{match_idx_actual}',
-            font=('Arial', 13, 'bold'), bg='#1a1a2e', fg='#FFD369',
-        ).pack(pady=(12, 4), padx=16)
-
-        current_table = match_data.get('table_name', '')
-        if current_table:
-            tk.Label(top, text=f'Bàn hiện tại: {current_table}',
-                     font=('Arial', 11), bg='#1a1a2e', fg='#aaaaaa').pack(pady=(0, 8))
-
-        def select_table(table_name):
-            top.destroy()
-            table_map = getattr(self, 'hbsf_table_map', {})
-            table_id = table_map.get(table_name)
-            if not table_id:
-                messagebox.showerror('Lỗi', f'Không tìm thấy ID bàn "{table_name}". Hãy tải lại HBSF.')
+            if not tran_val:
+                self.status_var.set('Vui lòng nhập số trận trước khi cập nhật bàn.')
                 return
-            try:
-                import requests
-                base_url = self.hbsf_url_var.get().strip().rstrip('/') if hasattr(self, 'hbsf_url_var') else ''
-                round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
-                match_id = match_data['id']
-                if round_type == 'Vòng Loại':
-                    url = f'{base_url}/api/tournament-matches/match/{match_id}/table'
-                    resp = requests.patch(url, json={'table_id': table_id}, timeout=5)
-                else:
-                    url = f'{base_url}/api/main-matches/match/{match_id}'
-                    resp = requests.patch(url, json={'table_id': table_id}, timeout=5)
-                if resp.status_code == 200:
-                    widgets[1].delete(0, 'end')
-                    widgets[1].insert(0, table_name)
-                    match_data['table_name'] = table_name
-                    self.status_var.set(f'Đã cập nhật bàn {table_name} cho Trận #{match_idx_actual}')
-                    messagebox.showinfo('Thành công', f'Đã cập nhật bàn {table_name} cho Trận #{match_idx_actual}')
-                else:
-                    try:
-                        err_msg = resp.json().get('message', resp.text[:200])
-                    except Exception:
-                        err_msg = resp.text[:200]
-                    messagebox.showerror('Lỗi', f'Lỗi {resp.status_code}: {err_msg}')
-            except Exception as ex:
-                messagebox.showerror('Lỗi kết nối', str(ex))
+            if not table_name:
+                self.status_var.set('Vui lòng nhập/chọn tên bàn trước khi cập nhật.')
+                return
+            if not base_url:
+                self.status_var.set('Chưa nhập URL web (HBSF URL).')
+                return
+            if not event_id or not event_id.isdigit():
+                self.status_var.set('Chưa nhập Event ID hợp lệ.')
+                return
 
-        btn_frame = tk.Frame(top, bg='#1a1a2e')
-        btn_frame.pack(padx=16, pady=4, fill='x')
-        cols = 2
-        for bidx, tn in enumerate(self.hbsf_tables):
-            r, c = divmod(bidx, cols)
-            tk.Button(
-                btn_frame, text=tn,
-                font=('Arial', 12, 'bold'), bg='#1565C0', fg='white',
-                width=12, pady=7,
-                command=lambda t=tn: select_table(t),
-            ).grid(row=r, column=c, padx=5, pady=4, sticky='ew')
-        for c in range(cols):
-            btn_frame.columnconfigure(c, weight=1)
+            mx = re.search(r'(\d+)', tran_val)
+            if not mx:
+                self.status_var.set(f'Không đọc được số trận từ "{tran_val}".')
+                return
+            match_idx_num = int(mx.group(1))
 
-        tk.Button(top, text='Huỷ', font=('Arial', 11), bg='#555', fg='white',
-                  command=top.destroy).pack(pady=(4, 12))
+            if round_type == 'Vòng Loại':
+                url = f'{base_url}/api/tournament-matches/table-update/{event_id}'
+                payload = {
+                    'match_idx_actual': match_idx_num,
+                    'table_name': table_name,
+                }
+            else:
+                url = f'{base_url}/api/main-matches/table-update/{event_id}'
+                payload = {
+                    'match_idx': match_idx_num,
+                    'table_name': table_name,
+                }
+
+            resp = requests.post(url, json=payload, timeout=5)
+            if resp.status_code == 200:
+                try:
+                    hbsf_data = getattr(self, 'hbsf_match_data', {})
+                    key = str(match_idx_num)
+                    if key in hbsf_data:
+                        hbsf_data[key]['table_name'] = table_name
+                except Exception:
+                    pass
+                self.status_var.set(f'Đã gửi cập nhật bàn "{table_name}" cho trận {match_idx_num}.')
+            else:
+                try:
+                    err_msg = resp.json().get('message', resp.text[:200])
+                except Exception:
+                    err_msg = resp.text[:200]
+                self.status_var.set(f'Cập nhật bàn lỗi ({resp.status_code}): {err_msg}')
+        except Exception as ex:
+            self.status_var.set(f'Lỗi kết nối cập nhật bàn: {ex}')
 
     def highlight_row(self, row_idx):
         for i, widgets in enumerate(self.match_rows):
@@ -6580,6 +6722,8 @@ class FullScreenMatchGUI(tk.Tk):
                         pass
             self.hbsf_match_data[str(m.get('match_idx_actual', ''))] = {
                 'id': m.get('id'),
+                'match_idx_actual': m.get('match_idx_actual'),
+                'match_idx': m.get('match_idx'),
                 'table_name': tname,
                 'player_a': m.get('player_name_a', '') or '',
                 'player_b': m.get('player_name_b', '') or '',
