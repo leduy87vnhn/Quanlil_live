@@ -1,0 +1,46 @@
+import requests
+import json
+import time
+import os
+
+# URL Apps Script (deploy ID của bạn)
+URL = "https://script.google.com/macros/s/AKfycbyZ9WXmpYXVeQ34BAgSgWpY4ugOKyImfxTEuRz44rEyBbziy2leBgXuCRKjjPWF-0H-ew/exec"
+
+# File do vMix ghi
+DATA_FILE = r"C:\Users\Public\Documents\vmix_data.txt"
+
+def send_to_sheet(data):
+    try:
+        resp = requests.get(URL, params=data)
+        print("Đã gửi:", data, "→ Response:", resp.text)
+    except Exception as e:
+        print("Lỗi gửi:", e)
+
+def main():
+    print("Bắt đầu theo dõi file vMix...")
+    last_mtime = None
+
+    while True:
+        try:
+            if os.path.exists(DATA_FILE):
+                mtime = os.path.getmtime(DATA_FILE)  # thời gian chỉnh sửa file
+                if last_mtime is None or mtime != last_mtime:
+                    last_mtime = mtime
+                    with open(DATA_FILE, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                    if content:
+                        try:
+                            data = json.loads(content)  # parse JSON từ file
+                            send_to_sheet(data)
+                        except json.JSONDecodeError:
+                            print("File không phải JSON hợp lệ:", content)
+            else:
+                print("Chưa thấy file:", DATA_FILE)
+
+        except Exception as e:
+            print("Lỗi:", e)
+
+        time.sleep(1)  # kiểm tra mỗi giây
+
+if __name__ == "__main__":
+    main()
