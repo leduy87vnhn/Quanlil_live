@@ -6000,37 +6000,6 @@ class FullScreenMatchGUI(tk.Tk):
                 pass
             e_vmix.grid(row=i+1, column=5, padx=2, pady=2, ipadx=0, ipady=6, sticky='ew')
             widgets.append(e_vmix)
-            # Button to send this row's vMix to a preview cell
-            def send_vmix_to_preview(idx=i, entry=e_vmix):
-                try:
-                    import tkinter.simpledialog as _sd
-                    vmix_url = entry.get().strip() if hasattr(entry, 'get') else ''
-                    if not vmix_url:
-                        messagebox.showerror('Lỗi', 'Địa chỉ vMix trống!')
-                        return
-                    cell = _sd.askinteger('Chọn ô preview', 'Chọn ô preview (1-9):', minvalue=1, maxvalue=9, parent=self)
-                    if cell is None:
-                        return
-                    # set preview cell (0-based)
-                    try:
-                        self.preview_set_cell(cell-1, 'vmix', vmix_url)
-                    except Exception:
-                        pass
-                    try:
-                        p = self.preview_open()
-                        if p is not None:
-                            try:
-                                self._update_last_preview_meta(p)
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-                    self.save_preview_now()
-                except Exception:
-                    pass
-            btn_preview = tk.Button(self.table_frame, text='Gửi Preview', command=send_vmix_to_preview, bg='#00B0FF', fg='#000')
-            btn_preview.grid(row=i+1, column=6, padx=2, pady=2, ipadx=6, ipady=6, sticky='ew')
-            widgets.append(btn_preview)
             # Nút Kết quả cập nhật web cho từng bàn
             swap_state = [False]  # Trạng thái đảo vị trí VĐV: False = bình thường, True = A↔B
             self._set_row_position(i, swap_state[0])
