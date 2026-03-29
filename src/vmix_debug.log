@@ -318,3 +318,5 @@
 [2026-03-29T22:44:07.487484] _on_canvas_configure canvas_width=1839 avail_width=1791 total_padding=48 sizes_sum=1353 sizes=[40, 88, 218, 218, 60, 120, 50, 92, 97, 86, 120, 164]
 [2026-03-29T22:44:07.717868] _on_canvas_configure canvas_width=1860 avail_width=1812 total_padding=48 sizes_sum=1366 sizes=[40, 90, 220, 220, 60, 120, 50, 93, 98, 87, 122, 166]
 [2026-03-29T22:44:07.942477] _on_canvas_configure canvas_width=1874 avail_width=1826 total_padding=48 sizes_sum=1376 sizes=[40, 90, 222, 222, 60, 120, 50, 94, 99, 88, 123, 168]
+[2026-03-29T23:53:47.890605] _on_canvas_configure canvas_width=1903 avail_width=1855 total_padding=48 sizes_sum=1323 sizes=[40, 88, 211, 211, 60, 120, 50, 89, 94, 83, 117, 160]
+[2026-03-29T23:57:46.686788] _on_canvas_configure canvas_width=1874 avail_width=1826 total_padding=48 sizes_sum=1308 sizes=[40, 87, 208, 208, 60, 120, 50, 88, 93, 82, 115, 157]
