@@ -493,6 +493,12 @@ class FullScreenMatchGUI(tk.Tk):
             self._send_blink_job = None
         except Exception:
             pass
+        try:
+            self._set_ban_blink_rows = set()
+            self._set_ban_blink_phase = False
+            self._set_ban_blink_job = None
+        except Exception:
+            pass
         # Attempt to eagerly load saved state so restore runs during widget init
         try:
             import pickle
@@ -5229,7 +5235,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Table header
         header_bg = '#232B3E'
         header_fg = '#FFD369'
-        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi', 'Vị Trí', 'Cập nhật bàn']
+        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi', 'Vị Trí', 'Set Bàn']
         # Đặt width rõ ràng cho cột Trận và Số bàn
         for col, text in enumerate(headers):
             label = tk.Label(self.table_frame, text=text, bg=header_bg, fg=header_fg, font=('Arial', 18, 'bold'), relief='raised', bd=2)
@@ -5253,7 +5259,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Reduce 'Kết quả', 'Điểm số', and 'Địa chỉ vMix' to roughly half their previous horizontal weight
         # Order: Trận, BÀN, Tên A, Tên B, Điểm số, Địa chỉ vMix, Kết quả, Gửi, Sửa
         # Further reduce 'Kết quả' (index 6) per request
-        self.col_weights = [6, 4, 16, 16, 2, 8, 2, 5, 4, 3, 3, 4]
+        self.col_weights = [6, 4, 16, 16, 1, 8, 2, 5, 4, 3, 3, 4]
         self._col_total_weight = sum(self.col_weights)
         for col, weight in enumerate(self.col_weights):
             # Use fixed minsize distribution instead of grid weight-driven expansion
@@ -5828,6 +5834,62 @@ class FullScreenMatchGUI(tk.Tk):
         else:
             self._send_blink_job = None
 
+    # ── Set Bàn blink methods ─────────────────────────────────────────────────
+    def _start_set_ban_blink(self, row_idx):
+        try:
+            self._set_ban_blink_rows.add(row_idx)
+        except Exception:
+            return
+        if not getattr(self, '_set_ban_blink_job', None):
+            self._blink_set_ban_tick()
+
+    def _stop_set_ban_blink(self, row_idx):
+        try:
+            self._set_ban_blink_rows.discard(row_idx)
+        except Exception:
+            pass
+        try:
+            btns = getattr(self, '_set_ban_buttons', [])
+            if row_idx < len(btns) and btns[row_idx] is not None:
+                btns[row_idx].config(bg='#6A1B9A', fg='white', text='Set Bàn')
+        except Exception:
+            pass
+        if not getattr(self, '_set_ban_blink_rows', set()):
+            try:
+                if getattr(self, '_set_ban_blink_job', None):
+                    self.after_cancel(self._set_ban_blink_job)
+            except Exception:
+                pass
+            self._set_ban_blink_job = None
+
+    def _blink_set_ban_tick(self):
+        if not hasattr(self, '_set_ban_blink_rows'):
+            return
+        self._set_ban_blink_phase = not getattr(self, '_set_ban_blink_phase', False)
+        bad_rows = []
+        btns = getattr(self, '_set_ban_buttons', [])
+        for idx in list(self._set_ban_blink_rows):
+            if idx >= len(getattr(self, 'match_rows', [])):
+                bad_rows.append(idx)
+                continue
+            try:
+                btn = btns[idx] if idx < len(btns) else None
+                if btn is None:
+                    bad_rows.append(idx)
+                    continue
+                if self._set_ban_blink_phase:
+                    btn.config(bg='#D50000', fg='white', text='Set Bàn!')
+                else:
+                    btn.config(bg='#8E0000', fg='white', text='Set Bàn!')
+            except Exception:
+                bad_rows.append(idx)
+        for idx in bad_rows:
+            self._set_ban_blink_rows.discard(idx)
+        if self._set_ban_blink_rows:
+            self._set_ban_blink_job = self.after(450, self._blink_set_ban_tick)
+        else:
+            self._set_ban_blink_job = None
+
     def _auto_ketqua_tick(self):
         try:
             if not getattr(self, '_auto_ketqua_enabled', True):
@@ -5870,8 +5932,14 @@ class FullScreenMatchGUI(tk.Tk):
         self._row_swap_states = [False] * num_rows
         self._row_position_vars = []
         self._row_swap_buttons = [None] * num_rows
+        self._set_ban_buttons = [None] * num_rows
         try:
             self._send_blink_rows = set()
+        except Exception:
+            pass
+        try:
+            self._set_ban_blink_rows = set()
+            self._set_ban_blink_job = None
         except Exception:
             pass
         for i in range(num_rows):
@@ -5983,7 +6051,8 @@ class FullScreenMatchGUI(tk.Tk):
                 e_diem.config()
             except Exception:
                 pass
-            e_diem.grid(row=i+1, column=4, padx=2, pady=2, ipadx=7, ipady=6, sticky='ew')
+            e_diem.config(width=3)
+            e_diem.grid(row=i+1, column=4, padx=2, pady=2, ipadx=0, ipady=6, sticky='ew')
             def diem_user_edit(event, entry=e_diem):
                 entry._user_edited = True
             e_diem.bind('<Key>', diem_user_edit)
@@ -6101,7 +6170,7 @@ class FullScreenMatchGUI(tk.Tk):
             widgets.append(pos_lbl)
             # --- Nút Cập nhật bàn ---
             btn_update_ban = tk.Button(
-                self.table_frame, text='Cập nhật\nbàn',
+                self.table_frame, text='Set Bàn',
                 bg='#6A1B9A', fg='white',
                 font=('Arial', 11, 'bold'),
                 relief='raised', bd=2, width=7,
@@ -6109,6 +6178,8 @@ class FullScreenMatchGUI(tk.Tk):
             )
             btn_update_ban.grid(row=i+1, column=11, padx=2, pady=2, ipadx=0)
             widgets.append(btn_update_ban)
+            if hasattr(self, '_set_ban_buttons') and i < len(self._set_ban_buttons):
+                self._set_ban_buttons[i] = btn_update_ban
             self._set_row_position(i, swap_state[0])
             # Không còn bôi màu khi click vào ô
             self.match_rows.append(widgets)
@@ -6198,6 +6269,10 @@ class FullScreenMatchGUI(tk.Tk):
             # Luôn giữ nút Sửa ổn định, không đổi text
             if len(widgets) > 8:
                 widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            try:
+                self._stop_set_ban_blink(row_idx)
+            except Exception:
+                pass
             return
         # Tìm tên cột linh hoạt, cho phép chọn cột theo tên thực tế
         def find_col_key(keys, *candidates):
@@ -6308,6 +6383,17 @@ class FullScreenMatchGUI(tk.Tk):
                     widgets[1].delete(0, 'end')
                     widgets[1].insert(0, ban_val_from_data)
             set_status('')
+            # Nếu trận chưa có bàn (HBSF mode) → nhấp nháy nút Set Bàn
+            try:
+                if getattr(self, 'hbsf_tables', None):
+                    if not ban_val_from_data:
+                        self._start_set_ban_blink(row_idx)
+                    else:
+                        self._stop_set_ban_blink(row_idx)
+                else:
+                    self._stop_set_ban_blink(row_idx)
+            except Exception:
+                pass
             if len(widgets) > 8:
                 widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
 
@@ -6517,6 +6603,7 @@ class FullScreenMatchGUI(tk.Tk):
     def update_table_for_row(self, row_idx):
         """Gửi trực tiếp số trận + tên bàn lên web để cập nhật table_id nếu trận chưa có bàn."""
         import re
+        from tkinter import messagebox
         try:
             import requests
             widgets = self.match_rows[row_idx]
@@ -6527,21 +6614,21 @@ class FullScreenMatchGUI(tk.Tk):
             round_type = self.round_type_var.get() if hasattr(self, 'round_type_var') else 'Vòng Loại'
 
             if not tran_val:
-                self.status_var.set('Vui lòng nhập số trận trước khi cập nhật bàn.')
+                messagebox.showwarning('Thiếu thông tin', 'Vui lòng nhập số trận trước khi set bàn.')
                 return
             if not table_name:
-                self.status_var.set('Vui lòng nhập/chọn tên bàn trước khi cập nhật.')
+                messagebox.showwarning('Thiếu thông tin', 'Vui lòng nhập/chọn tên bàn trước khi set bàn.')
                 return
             if not base_url:
-                self.status_var.set('Chưa nhập URL web (HBSF URL).')
+                messagebox.showwarning('Thiếu thông tin', 'Chưa nhập URL web (HBSF URL).')
                 return
             if not event_id or not event_id.isdigit():
-                self.status_var.set('Chưa nhập Event ID hợp lệ.')
+                messagebox.showwarning('Thiếu thông tin', 'Chưa nhập Event ID hợp lệ.')
                 return
 
             mx = re.search(r'(\d+)', tran_val)
             if not mx:
-                self.status_var.set(f'Không đọc được số trận từ "{tran_val}".')
+                messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}".')
                 return
             match_idx_num = int(mx.group(1))
 
@@ -6560,6 +6647,13 @@ class FullScreenMatchGUI(tk.Tk):
 
             resp = requests.post(url, json=payload, timeout=5)
             if resp.status_code == 200:
+                resp_data = {}
+                try:
+                    resp_data = resp.json()
+                except Exception:
+                    pass
+                skipped = resp_data.get('skipped', False)
+                # Cập nhật hbsf_match_data local
                 try:
                     hbsf_data = getattr(self, 'hbsf_match_data', {})
                     key = str(match_idx_num)
@@ -6567,15 +6661,36 @@ class FullScreenMatchGUI(tk.Tk):
                         hbsf_data[key]['table_name'] = table_name
                 except Exception:
                     pass
-                self.status_var.set(f'Đã gửi cập nhật bàn "{table_name}" cho trận {match_idx_num}.')
+                # Dừng blink sau khi set thành công
+                try:
+                    self._stop_set_ban_blink(row_idx)
+                except Exception:
+                    pass
+                if skipped:
+                    self.status_var.set(f'Trận {match_idx_num} đã có bàn sẵn, không thay đổi.')
+                    messagebox.showinfo(
+                        'Đã có bàn',
+                        f'Trận {match_idx_num} đã được xếp vào bàn trước đó.\nKhông thay đổi.'
+                    )
+                else:
+                    self.status_var.set(f'✅ Đã set bàn "{table_name}" cho trận {match_idx_num}.')
+                    messagebox.showinfo(
+                        'Set Bàn thành công',
+                        f'✅ Đã cập nhật bàn "{table_name}" cho trận {match_idx_num} ({round_type}).'
+                    )
             else:
                 try:
-                    err_msg = resp.json().get('message', resp.text[:200])
+                    err_msg = resp.json().get('message', resp.text[:300])
                 except Exception:
-                    err_msg = resp.text[:200]
-                self.status_var.set(f'Cập nhật bàn lỗi ({resp.status_code}): {err_msg}')
+                    err_msg = resp.text[:300]
+                self.status_var.set(f'Set bàn lỗi ({resp.status_code}): {err_msg}')
+                messagebox.showerror(
+                    'Set Bàn thất bại',
+                    f'❌ Không thể set bàn "{table_name}" cho trận {match_idx_num}.\n\nLỗi ({resp.status_code}): {err_msg}'
+                )
         except Exception as ex:
-            self.status_var.set(f'Lỗi kết nối cập nhật bàn: {ex}')
+            self.status_var.set(f'Lỗi kết nối set bàn: {ex}')
+            messagebox.showerror('Lỗi kết nối', f'Không thể kết nối để set bàn:\n{ex}')
 
     def highlight_row(self, row_idx):
         for i, widgets in enumerate(self.match_rows):
