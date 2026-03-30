@@ -466,6 +466,11 @@ class FullScreenMatchGUI(tk.Tk):
         except Exception:
             pass
         try:
+            # True khi người dùng đã explicitly cấu hình qua dialog 'Cấu hình Preview'
+            self._preview_meta_user_configured = False
+        except Exception:
+            pass
+        try:
             self._preview_footer_logo_path = ''
         except Exception:
             pass
@@ -2008,6 +2013,10 @@ class FullScreenMatchGUI(tk.Tk):
                 self._preview_footer_logo_path = str(s.get('preview_footer_logo') or '').strip()
             except Exception:
                 self._preview_footer_logo_path = ''
+            try:
+                self._preview_meta_user_configured = bool(s.get('preview_user_configured', False))
+            except Exception:
+                self._preview_meta_user_configured = False
 
             try:
                 ban_val = s.get('ban')
@@ -2586,13 +2595,15 @@ class FullScreenMatchGUI(tk.Tk):
                                     'logo_effect': str(cell.get('logo_effect') or 'cut'),
                                     'logo_interval': cell.get('logo_interval', 4.0),
                                 }
-                        elif ctype == 'vmix' and num_tables <= 0:
+                        elif ctype == 'vmix' and (num_tables <= 0 or getattr(self, '_preview_meta_user_configured', False)):
                             # If table rows are not available yet, keep saved vMix mapping as fallback.
+                            # Also respect user-configured cell assignments from 'Cấu hình Preview' dialog.
                             preview.cell_meta[i] = {
                                 'type': 'vmix',
                                 'value': cell.get('value'),
                                 'image_ref': None,
                                 'image_mode': 'fit',
+                                'ban_name': cell.get('ban_name'),
                             }
             except Exception:
                 pass
@@ -3150,6 +3161,8 @@ class FullScreenMatchGUI(tk.Tk):
                     tk.Label(left_stats_box, text=left_stats, fg='#DCDCDC', bg='#000000', justify='left', anchor='w', font=('Segoe UI', left_stats_fs, 'bold')).pack(fill='both', expand=True)
                     tk.Label(right_stats_box, text=right_stats, fg='#F2B705', bg='#000000', justify='left', anchor='e', font=('Segoe UI', right_stats_fs, 'bold')).pack(fill='both', expand=True)
 
+                    # scale factor for adi/bdi ball text
+                    ADIBDI_TEXT_SCALE = 1.4
                     def draw_ball(parent, relx, rely, value, fill_color, outline_color, text_color, diameter=None):
                         try:
                             txt = str(value if value is not None else '').strip()
@@ -3171,7 +3184,8 @@ class FullScreenMatchGUI(tk.Tk):
                                 tfs = max(11, int(text_ref_d * 0.37))
                             else:
                                 tfs = max(9, int(text_ref_d * 0.30))
-                            tfs = max(8, int(tfs * 0.70))
+                            # apply base reduction then requested scale (140%)
+                            tfs = max(8, int(tfs * 0.70 * ADIBDI_TEXT_SCALE))
                             c.create_text(d/2, d/2, text=txt, fill=text_color, font=('Segoe UI', tfs, 'bold'))
                         except Exception:
                             pass
@@ -3190,7 +3204,8 @@ class FullScreenMatchGUI(tk.Tk):
                     elif has_bdi:
                         draw_ball(stats_area, 0.67, ball_y, bdi_text, '#F2B705', '#DAA200', '#171717')
 
-                    lco_fs = _fit_font_size(str(lco), 'Segoe UI', 'bold', _fs(0.154, 24, 60), int(w * 0.24), min_size=11)
+                    # increase Lượt cơ font size by ~130%
+                    lco_fs = _fit_font_size(str(lco), 'Segoe UI', 'bold', _fs(0.20, 31, 78), int(w * 0.24), min_size=11)
                     tk.Label(stats_area, text=f'{lco}', fg='#FF9E9E', bg='#000000', font=('Segoe UI', lco_fs, 'bold')).place(relx=0.5, rely=0.53, anchor='center')
 
                     # Single subtle gray strip across the full bottom width, touching cell bottom.
@@ -3817,6 +3832,7 @@ class FullScreenMatchGUI(tk.Tk):
             # use previously stored preview meta if available
             serial_preview = getattr(self, '_last_preview_meta', None)
         state['preview'] = serial_preview
+        state['preview_user_configured'] = bool(getattr(self, '_preview_meta_user_configured', False))
         state['preview_footer_logo'] = str(getattr(self, '_preview_footer_logo_path', '') or '')
         state['_schema_version'] = int(getattr(self, '_state_schema_version', 2) or 2)
         try:
@@ -4276,6 +4292,8 @@ class FullScreenMatchGUI(tk.Tk):
                     for k in range(9):
                         sp[k] = serial[k] if k < len(serial) else None
                     self._last_preview_meta = sp
+                    # đánh dấu người dùng đã explicitly cấu hình
+                    self._preview_meta_user_configured = True
                     try:
                         self._auto_save_state()
                     except Exception:
@@ -5235,7 +5253,7 @@ class FullScreenMatchGUI(tk.Tk):
         # Table header
         header_bg = '#232B3E'
         header_fg = '#FFD369'
-        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa', 'Đổi', 'Vị Trí', 'Set Bàn']
+        headers = ['Trận', 'BÀN', 'Tên VĐV A', 'Tên VĐV B', 'Điểm số', 'Địa chỉ vMix', 'Kết quả', 'Gửi', 'Sửa']
         # Đặt width rõ ràng cho cột Trận và Số bàn
         for col, text in enumerate(headers):
             label = tk.Label(self.table_frame, text=text, bg=header_bg, fg=header_fg, font=('Arial', 18, 'bold'), relief='raised', bd=2)
@@ -5259,7 +5277,8 @@ class FullScreenMatchGUI(tk.Tk):
         # Reduce 'Kết quả', 'Điểm số', and 'Địa chỉ vMix' to roughly half their previous horizontal weight
         # Order: Trận, BÀN, Tên A, Tên B, Điểm số, Địa chỉ vMix, Kết quả, Gửi, Sửa
         # Further reduce 'Kết quả' (index 6) per request
-        self.col_weights = [6, 4, 16, 16, 1, 8, 2, 5, 4, 3, 3, 4]
+        # Increase Name A/B widths by ~130%
+        self.col_weights = [6, 4, 21, 21, 1, 8, 2, 5, 4]
         self._col_total_weight = sum(self.col_weights)
         for col, weight in enumerate(self.col_weights):
             # Use fixed minsize distribution instead of grid weight-driven expansion
@@ -6147,39 +6166,7 @@ class FullScreenMatchGUI(tk.Tk):
                     set_btn_color(btn, 'fail')
             btn_ketqua.config(command=lambda idx=i, btn=btn_ketqua: on_btn_ketqua(idx, btn))
 
-            # --- Nút Đổi: đảo vị trí VĐV A/B ---
-            btn_doi = tk.Button(self.table_frame, text='Đổi', bg='#9E9E9E', fg='white',
-                                font=('Arial', 18, 'bold'), relief='raised', bd=2, width=4)
-            btn_doi.grid(row=i+1, column=9, padx=2, pady=2, ipadx=0)
-            self._row_swap_buttons[i] = btn_doi
-            def on_doi(row_idx=i):
-                self._toggle_row_swap(row_idx)
-            btn_doi.config(command=on_doi)
-            widgets.append(btn_doi)
-            # --- Cột Vị Trí ---
-            pos_var = tk.StringVar(value='Thuận')
-            pos_lbl = tk.Label(
-                self.table_frame,
-                textvariable=pos_var,
-                font=('Arial', 13, 'bold'),
-                bg='#0D47A1', fg='white',
-                relief='raised', bd=2, width=8,
-            )
-            pos_lbl.grid(row=i+1, column=10, padx=2, pady=2, ipadx=2, ipady=8, sticky='ew')
-            self._row_position_vars.append(pos_var)
-            widgets.append(pos_lbl)
-            # --- Nút Cập nhật bàn ---
-            btn_update_ban = tk.Button(
-                self.table_frame, text='Set Bàn',
-                bg='#6A1B9A', fg='white',
-                font=('Arial', 11, 'bold'),
-                relief='raised', bd=2, width=7,
-                command=lambda idx=i: self.update_table_for_row(idx),
-            )
-            btn_update_ban.grid(row=i+1, column=11, padx=2, pady=2, ipadx=0)
-            widgets.append(btn_update_ban)
-            if hasattr(self, '_set_ban_buttons') and i < len(self._set_ban_buttons):
-                self._set_ban_buttons[i] = btn_update_ban
+            # (Removed per-row 'Đổi', 'Vị Trí' and 'Set Bàn' controls — layout adjusted to avoid empty columns)
             self._set_row_position(i, swap_state[0])
             # Không còn bôi màu khi click vào ô
             self.match_rows.append(widgets)
