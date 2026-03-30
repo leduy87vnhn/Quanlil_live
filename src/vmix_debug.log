@@ -290,3 +290,33 @@
 [2026-03-29T19:04:17.001178] AFTER_POPULATE_TABLE ban_var=6
 [2026-03-29T19:04:17.001548] RESTORE_CALL_END
 [2026-03-29T19:04:17.723567] _on_canvas_configure canvas_width=1903 avail_width=1855 total_padding=48 sizes_sum=1433 sizes=[40, 88, 214, 214, 60, 120, 50, 90, 95, 84, 118, 260]
+[2026-03-29T19:22:13.832793] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-29T19:22:13.865132] RESTORE_CALL_BEGIN
+[2026-03-29T19:22:13.894503] AFTER_RESTORE ban_var=6
+[2026-03-29T19:22:13.964672] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-29T19:22:13.965003] RESTORE_CALL_END
+[2026-03-29T19:22:14.782723] _on_canvas_configure canvas_width=1903 avail_width=1855 total_padding=48 sizes_sum=1393 sizes=[40, 91, 226, 226, 60, 120, 50, 96, 100, 89, 125, 170]
+[2026-03-29T22:15:08.634206] EAGER_RESTORE loaded=D:\Projects\bidavn\code\Quanlil_live\ui_state.pkl keys=['tengiai', 'thoigian', 'diadiem', 'chuchay', 'diemso', 'sheet_url', 'creds_path', 'hbsf_url', 'event_id', 'round_type', 'ban', 'table', 'preview', 'preview_footer_logo', '_schema_version', '_machine_name', '_state_foreign_machine'] table_rows=6
+[2026-03-29T22:15:08.678492] RESTORE_CALL_BEGIN
+[2026-03-29T22:15:08.710901] AFTER_RESTORE ban_var=6
+[2026-03-29T22:15:08.772112] AFTER_POPULATE_TABLE ban_var=6
+[2026-03-29T22:15:08.772453] RESTORE_CALL_END
+[2026-03-29T22:15:09.579643] _on_canvas_configure canvas_width=1903 avail_width=1855 total_padding=48 sizes_sum=1393 sizes=[40, 91, 226, 226, 60, 120, 50, 96, 100, 89, 125, 170]
+[2026-03-29T22:44:00.926964] _on_canvas_configure canvas_width=943 avail_width=895 total_padding=48 sizes_sum=812 sizes=[40, 45, 109, 109, 60, 120, 50, 46, 48, 43, 60, 82]
+[2026-03-29T22:44:04.959480] _on_canvas_configure canvas_width=944 avail_width=896 total_padding=48 sizes_sum=813 sizes=[40, 46, 109, 109, 60, 120, 50, 46, 48, 43, 60, 82]
+[2026-03-29T22:44:05.106671] _on_canvas_configure canvas_width=1167 avail_width=1119 total_padding=48 sizes_sum=947 sizes=[40, 57, 136, 136, 60, 120, 50, 57, 60, 53, 75, 103]
+[2026-03-29T22:44:05.258840] _on_canvas_configure canvas_width=1388 avail_width=1340 total_padding=48 sizes_sum=1081 sizes=[40, 67, 163, 163, 60, 120, 50, 69, 72, 64, 90, 123]
+[2026-03-29T22:44:05.428443] _on_canvas_configure canvas_width=1433 avail_width=1385 total_padding=48 sizes_sum=1108 sizes=[40, 70, 168, 168, 60, 120, 50, 71, 75, 66, 93, 127]
+[2026-03-29T22:44:05.621068] _on_canvas_configure canvas_width=1468 avail_width=1420 total_padding=48 sizes_sum=1130 sizes=[40, 71, 173, 173, 60, 120, 50, 73, 77, 68, 95, 130]
+[2026-03-29T22:44:05.809592] _on_canvas_configure canvas_width=1522 avail_width=1474 total_padding=48 sizes_sum=1163 sizes=[40, 74, 179, 179, 60, 120, 50, 76, 80, 71, 99, 135]
+[2026-03-29T22:44:05.996887] _on_canvas_configure canvas_width=1596 avail_width=1548 total_padding=48 sizes_sum=1206 sizes=[40, 76, 188, 188, 60, 120, 50, 80, 84, 74, 104, 142]
+[2026-03-29T22:44:06.207178] _on_canvas_configure canvas_width=1634 avail_width=1586 total_padding=48 sizes_sum=1230 sizes=[40, 77, 193, 193, 60, 120, 50, 82, 86, 76, 107, 146]
+[2026-03-29T22:44:06.433477] _on_canvas_configure canvas_width=1670 avail_width=1622 total_padding=48 sizes_sum=1252 sizes=[40, 81, 197, 197, 60, 120, 50, 83, 88, 78, 109, 149]
+[2026-03-29T22:44:06.649830] _on_canvas_configure canvas_width=1720 avail_width=1672 total_padding=48 sizes_sum=1282 sizes=[40, 84, 203, 203, 60, 120, 50, 86, 90, 80, 112, 154]
+[2026-03-29T22:44:06.877558] _on_canvas_configure canvas_width=1770 avail_width=1722 total_padding=48 sizes_sum=1312 sizes=[40, 85, 209, 209, 60, 120, 50, 89, 93, 83, 116, 158]
+[2026-03-29T22:44:07.257947] _on_canvas_configure canvas_width=1811 avail_width=1763 total_padding=48 sizes_sum=1337 sizes=[40, 87, 214, 214, 60, 120, 50, 91, 95, 85, 119, 162]
+[2026-03-29T22:44:07.487484] _on_canvas_configure canvas_width=1839 avail_width=1791 total_padding=48 sizes_sum=1353 sizes=[40, 88, 218, 218, 60, 120, 50, 92, 97, 86, 120, 164]
+[2026-03-29T22:44:07.717868] _on_canvas_configure canvas_width=1860 avail_width=1812 total_padding=48 sizes_sum=1366 sizes=[40, 90, 220, 220, 60, 120, 50, 93, 98, 87, 122, 166]
+[2026-03-29T22:44:07.942477] _on_canvas_configure canvas_width=1874 avail_width=1826 total_padding=48 sizes_sum=1376 sizes=[40, 90, 222, 222, 60, 120, 50, 94, 99, 88, 123, 168]
+[2026-03-29T23:53:47.890605] _on_canvas_configure canvas_width=1903 avail_width=1855 total_padding=48 sizes_sum=1323 sizes=[40, 88, 211, 211, 60, 120, 50, 89, 94, 83, 117, 160]
+[2026-03-29T23:57:46.686788] _on_canvas_configure canvas_width=1874 avail_width=1826 total_padding=48 sizes_sum=1308 sizes=[40, 87, 208, 208, 60, 120, 50, 88, 93, 82, 115, 157]

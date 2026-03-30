@@ -5839,8 +5839,14 @@ class FullScreenMatchGUI(tk.Tk):
                 bad_rows.append(idx)
                 continue
             try:
-                btn = self.match_rows[idx][7]
-                if self._send_blink_phase:
+                row_widgets = self.match_rows[idx]
+                btn = row_widgets[7]
+                # Không nhấp nháy nếu ô Trận bỏ trống
+                tran_empty = not row_widgets[0].get().strip() if len(row_widgets) > 0 else True
+                if tran_empty:
+                    btn.config(bg='#00C853', fg='white', text='Gửi', state='disabled')
+                    bad_rows.append(idx)
+                elif self._send_blink_phase:
                     btn.config(bg='#D50000', fg='white', text='Gửi !')
                 else:
                     btn.config(bg='#8E0000', fg='white', text='Gửi !')
@@ -6103,6 +6109,9 @@ class FullScreenMatchGUI(tk.Tk):
                                relief='raised', bd=2, width=10)
             btn_gui.config(width=6)
             btn_gui.original_text = 'Gửi'
+            # Disable nếu ô Trận bỏ trống
+            if not (old_rows[i][0].strip() if i < len(old_rows) else ''):
+                btn_gui.config(state='disabled')
             btn_gui.grid(row=i+1, column=7, padx=2, pady=2, ipadx=0)
             widgets.append(btn_gui)
             # --- Nút Sửa ---
@@ -6186,11 +6195,16 @@ class FullScreenMatchGUI(tk.Tk):
         tran_val = widgets[0].get().strip()
         try:
             prev_tran = getattr(widgets[0], '_prev_tran_value', tran_val)
+            btn_gui = widgets[7] if len(widgets) > 7 else None
             if tran_val != prev_tran:
                 if tran_val:
                     self._mark_send_needs_refresh(row_idx)
+                    if btn_gui:
+                        btn_gui.config(state='normal')
                 else:
                     self._stop_send_blink(row_idx)
+                    if btn_gui:
+                        btn_gui.config(bg='#00C853', fg='white', text='Gửi', state='disabled')
                 widgets[0]._prev_tran_value = tran_val
         except Exception:
             pass
@@ -6256,6 +6270,12 @@ class FullScreenMatchGUI(tk.Tk):
             # Luôn giữ nút Sửa ổn định, không đổi text
             if len(widgets) > 8:
                 widgets[8].config(state='normal', text='Sửa', bg='#FF9800', fg='#222831')
+            # Disable nút Gửi khi Trận bỏ trống
+            if len(widgets) > 7:
+                try:
+                    widgets[7].config(bg='#00C853', fg='white', text='Gửi', state='disabled')
+                except Exception:
+                    pass
             try:
                 self._stop_set_ban_blink(row_idx)
             except Exception:
@@ -6618,6 +6638,61 @@ class FullScreenMatchGUI(tk.Tk):
                 messagebox.showerror('Lỗi', f'Không đọc được số trận từ "{tran_val}".')
                 return
             match_idx_num = int(mx.group(1))
+
+            # --- Kiểm tra xung đột: bàn đó đang có trận khác không? ---
+            conflict_tran_list = []
+            for i, row_widgets in enumerate(self.match_rows):
+                if i == row_idx:
+                    continue
+                other_tran = row_widgets[0].get().strip() if len(row_widgets) > 0 else ''
+                other_ban = row_widgets[1].get().strip() if len(row_widgets) > 1 else ''
+                if other_ban and other_ban.lower() == table_name.lower() and other_tran:
+                    conflict_tran_list.append(other_tran)
+            if conflict_tran_list:
+                proceed = [False]
+                dlg = tk.Toplevel(self)
+                dlg.title('⚠️ Xung đột bàn thi đấu')
+                dlg.resizable(False, False)
+                try:
+                    dlg.transient(self)
+                    dlg.grab_set()
+                except Exception:
+                    pass
+                conflict_str = ', '.join(f'Trận {t}' for t in conflict_tran_list)
+                msg = (
+                    f'Bàn "{table_name}" hiện đang có {conflict_str} thi đấu.\n\n'
+                    f'Bạn có chắc muốn set bàn này cho Trận {match_idx_num} không?'
+                )
+                tk.Label(
+                    dlg, text=msg, font=('Arial', 13), wraplength=420,
+                    justify='left', padx=20, pady=16, bg='#222831', fg='#FFD369'
+                ).pack(fill='x')
+                dlg.configure(bg='#222831')
+                btn_frame = tk.Frame(dlg, bg='#222831')
+                btn_frame.pack(pady=(0, 14))
+                def on_huy(d=dlg, p=proceed):
+                    p[0] = False
+                    d.destroy()
+                def on_van_set(d=dlg, p=proceed):
+                    p[0] = True
+                    d.destroy()
+                tk.Button(
+                    btn_frame, text='Hủy', command=on_huy,
+                    bg='#616161', fg='white', font=('Arial', 12, 'bold'), width=10
+                ).pack(side='left', padx=8)
+                tk.Button(
+                    btn_frame, text='Vẫn Set', command=on_van_set,
+                    bg='#D32F2F', fg='white', font=('Arial', 12, 'bold'), width=10
+                ).pack(side='left', padx=8)
+                dlg.bind('<Escape>', lambda e: on_huy())
+                dlg.bind('<Return>', lambda e: on_van_set())
+                try:
+                    dlg.wait_window()
+                except Exception:
+                    pass
+                if not proceed[0]:
+                    return
+            # --- Hết kiểm tra xung đột ---
 
             if round_type == 'Vòng Loại':
                 url = f'{base_url}/api/tournament-matches/table-update/{event_id}'
