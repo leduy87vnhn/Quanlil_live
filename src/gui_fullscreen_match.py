@@ -5921,14 +5921,90 @@ class FullScreenMatchGUI(tk.Tk):
                 return
             if getattr(self, '_auto_ketqua_running', False):
                 return
-            self._auto_ketqua_running = True
-            for idx in range(len(getattr(self, 'match_rows', []))):
-                self._run_ketqua_logic_for_row(idx, silent=True, show_name_mismatch_popup=False)
-        except Exception:
-            pass
-        finally:
-            self._auto_ketqua_running = False
+            # Run the ketqua loop in a background thread so network calls do not
+            # block the Tk mainloop. UI-affecting actions are scheduled via
+            # `self.after(...)` to remain thread-safe.
+            def _worker():
+                try:
+                    self._auto_ketqua_running = True
+                    rows = list(range(len(getattr(self, 'match_rows', []))))
+                    for idx in rows:
+                        try:
+                            # read row values safely
+                            try:
+                                row = self.match_rows[idx]
+                                tran_val = row[0].get().strip() if len(row) > 0 else ''
+                                vmix_url = row[5].get().strip() if len(row) > 5 else ''
+                            except Exception:
+                                continue
+                            if not tran_val or not vmix_url:
+                                continue
+
+                            # fetch vmix data (network I/O off main thread)
+                            try:
+                                vmix_data = self._fetch_vmix_livescore_data(vmix_url)
+                            except Exception:
+                                continue
+
+                            # compare names
+                            try:
+                                screen_a = row[2].get().strip() if len(row) > 2 else ''
+                                screen_b = row[3].get().strip() if len(row) > 3 else ''
+                                n_screen_a = self._normalize_name_for_compare(screen_a)
+                                n_screen_b = self._normalize_name_for_compare(screen_b)
+                                n_vmix_a = self._normalize_name_for_compare(vmix_data.get('ten_a', '') or '')
+                                n_vmix_b = self._normalize_name_for_compare(vmix_data.get('ten_b', '') or '')
+                            except Exception:
+                                n_screen_a = n_screen_b = n_vmix_a = n_vmix_b = ''
+
+                            # If swap needed, schedule UI swap on main thread
+                            try:
+                                if n_vmix_a and n_vmix_b and n_screen_a and n_screen_b and n_vmix_a == n_screen_b and n_vmix_b == n_screen_a:
+                                    try:
+                                        self.after(0, lambda rid=idx: self._toggle_row_swap(rid))
+                                    except Exception:
+                                        pass
+                                # If names mismatch (and would prompt), skip posting when mismatch
+                                if n_vmix_a and n_vmix_b and n_screen_a and n_screen_b and not (n_vmix_a == n_screen_a and n_vmix_b == n_screen_b or (n_vmix_a == n_screen_b and n_vmix_b == n_screen_a)):
+                                    # name mismatch: do not post silently
+                                    continue
+                            except Exception:
+                                pass
+
+                            # post livescore to web (silent to avoid UI from background thread)
+                            try:
+                                try:
+                                    self._post_row_livescore(idx, vmix_data, silent=True)
+                                except Exception:
+                                    pass
+                            except Exception:
+                                pass
+                        except Exception:
+                            continue
+                finally:
+                    try:
+                        self._auto_ketqua_running = False
+                    except Exception:
+                        pass
+                    # schedule next tick on main thread
+                    try:
+                        self.after(int(getattr(self, 'auto_ketqua_interval_ms', 5000)), self._auto_ketqua_tick)
+                    except Exception:
+                        pass
+
             try:
+                import threading
+                t = threading.Thread(target=_worker, daemon=True)
+                t.start()
+            except Exception:
+                # Fallback: run synchronously if threading unavailable
+                try:
+                    _worker()
+                except Exception:
+                    pass
+        except Exception:
+            try:
+                # ensure next tick still scheduled even on unexpected error
                 self.after(int(getattr(self, 'auto_ketqua_interval_ms', 5000)), self._auto_ketqua_tick)
             except Exception:
                 pass
@@ -7005,8 +7081,14 @@ class FullScreenMatchGUI(tk.Tk):
             self.status_var.set('Không có dữ liệu Google Sheet! (Bảng cũ được giữ nguyên)')
 
     def push_to_vmix(self, idx):
-        import requests, sys
-        widgets = self.match_rows[idx]
+        # Run the network send in a background thread to avoid blocking the Tk mainloop.
+        import threading, requests, sys
+
+        try:
+            widgets = self.match_rows[idx]
+        except Exception:
+            return
+
         entry_tran = widgets[0]
         tran_raw = entry_tran.get().strip()
         vmix_url = widgets[5].get().strip()
@@ -7014,73 +7096,119 @@ class FullScreenMatchGUI(tk.Tk):
         vdv_a = widgets[2].get()
         vdv_b = widgets[3].get()
         diem = widgets[4].get()
-        # Chỉ gửi dữ liệu lên vMix, không cập nhật Google Sheet
-        entry_tran._last_sent = tran_raw
-        if hasattr(self, 'row_states') and idx < len(self.row_states):
-            self.row_states[idx]['dirty'] = False
-            btn = self.match_rows[idx][6]
-            btn.config(bg='#388E3C', fg='white')
-        tran_fmt = f'Trận {tran_raw}' if tran_raw and not str(tran_raw).startswith('Trận') else str(tran_raw)
-        # normalize vmix_url and API base
-        try:
-            base = vmix_url.strip()
-            if not base:
-                raise ValueError('Empty vMix URL')
-            if not base.startswith('http://') and not base.startswith('https://'):
-                base = 'http://' + base
-            api_base = base.rstrip('/') + '/API/'
-        except Exception as e:
-            self.status_var.set(f'Lỗi gửi: không hợp lệ địa chỉ vMix ({e})')
-            return
 
-        def _set_text(input_name, selected_name, value):
+        # Mark last sent locally and update UI immediately
+        try:
+            entry_tran._last_sent = tran_raw
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'row_states') and idx < len(self.row_states):
+                self.row_states[idx]['dirty'] = False
+        except Exception:
+            pass
+
+        # Visual: start blinking/send indicator on the button
+        try:
+            self._mark_send_needs_refresh(idx)
+        except Exception:
+            pass
+
+        def _worker():
+            tran_fmt = f'Trận {tran_raw}' if tran_raw and not str(tran_raw).startswith('Trận') else str(tran_raw)
             try:
+                base = vmix_url.strip()
+                if not base:
+                    raise ValueError('Empty vMix URL')
+                if not base.startswith('http://') and not base.startswith('https://'):
+                    base = 'http://' + base
+                api_base = base.rstrip('/') + '/API/'
+            except Exception as e:
+                # update status on main thread
+                try:
+                    self.after(0, lambda: self.status_var.set(f'Lỗi gửi: không hợp lệ địa chỉ vMix ({e})'))
+                except Exception:
+                    pass
+                try:
+                    self.after(0, lambda: self._stop_send_blink(idx))
+                except Exception:
+                    pass
+                return
+
+            def _set_text(input_name, selected_name, value):
                 params = {'Function': 'SetText', 'Input': input_name, 'SelectedName': selected_name, 'Value': value}
-                requests.get(api_base, params=params, timeout=3)
-            except Exception as ee:
-                raise
+                # small timeout to avoid long blocking in each call
+                requests.get(api_base, params=params, timeout=2)
+
+            try:
+                # Input 1 fields
+                _set_text('1', 'TenA.Text', vdv_a)
+                _set_text('1', 'TenB.Text', vdv_b)
+                _set_text('1', 'Tran.Text', tran_fmt)
+                _set_text('1', 'Noi dung.Text', diem)
+                # Backdrop fields (named inputs)
+                _set_text('backdrop.gtzip', 'tieu de.Text', self.tengiai_var.get())
+                _set_text('backdrop.gtzip', 'Ten A.Text', vdv_a)
+                _set_text('backdrop.gtzip', 'Ten B.Text', vdv_b)
+                _set_text('backdrop.gtzip', 'thoi gian.Text', self.thoigian_var.get())
+                _set_text('backdrop.gtzip', 'dia diem.Text', self.diadiem_var.get())
+                # ket qua and ticker fields
+                _set_text('ket qua.gtzip', 'tieu de.Text', self.tengiai_var.get())
+                _set_text('chay chu', 'Ticker1.Text', self.chuchay_var.get())
+
+                # success -> update UI
+                try:
+                    self.after(0, lambda: self.status_var.set(f'Đã gửi {tran_fmt} ({ban}) lên vMix: {base}'))
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    print(f'ERROR: Không gửi được dữ liệu lên vMix: {e}', file=sys.stderr)
+                except Exception:
+                    pass
+                try:
+                    # Best-effort fallback minimal fields
+                    try:
+                        _set_text('backdrop.gtzip', 'noi dung.Text', diem)
+                    except Exception:
+                        pass
+                    try:
+                        _set_text('ket qua.gtzip', 'tieu de.Text', self.tengiai_var.get())
+                    except Exception:
+                        pass
+                    try:
+                        _set_text('chay chu', 'Ticker1.Text', self.chuchay_var.get())
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                friendly = self._friendly_network_error(e, base if 'base' in locals() else '')
+                try:
+                    self.after(0, lambda: self.status_var.set(f'Lỗi gửi {tran_fmt}: {friendly}' if tran_fmt else f'Lỗi gửi: {friendly}'))
+                except Exception:
+                    pass
+            finally:
+                # ensure UI stops blinking and shows final color
+                try:
+                    self.after(0, lambda: self._stop_send_blink(idx))
+                    # set final color on send button
+                    def _final_color():
+                        try:
+                            if idx < len(self.match_rows):
+                                btn = self.match_rows[idx][7]
+                                btn.config(bg='#00C853', fg='white', text='Gửi')
+                        except Exception:
+                            pass
+                    self.after(0, _final_color)
+                except Exception:
+                    pass
 
         try:
-            # Input 1 fields
-            _set_text('1', 'TenA.Text', vdv_a)
-            _set_text('1', 'TenB.Text', vdv_b)
-            _set_text('1', 'Tran.Text', tran_fmt)
-            _set_text('1', 'Noi dung.Text', diem)
-            # Backdrop fields (named inputs)
-            _set_text('backdrop.gtzip', 'tieu de.Text', self.tengiai_var.get())
-            _set_text('backdrop.gtzip', 'Ten A.Text', vdv_a)
-            _set_text('backdrop.gtzip', 'Ten B.Text', vdv_b)
-            _set_text('backdrop.gtzip', 'thoi gian.Text', self.thoigian_var.get())
-            _set_text('backdrop.gtzip', 'dia diem.Text', self.diadiem_var.get())
-
-            # ket qua and ticker fields
-            _set_text('ket qua.gtzip', 'tieu de.Text', self.tengiai_var.get())
-            _set_text('chay chu', 'Ticker1.Text', self.chuchay_var.get())
-
-            self.status_var.set(f'Đã gửi {tran_fmt} ({ban}) lên vMix: {base}')
-        except Exception as e:
-            print(f'ERROR: Không gửi được dữ liệu lên vMix: {e}', file=sys.stderr)
-            try:
-                # Best-effort fallback: try to send minimal fields
-                try:
-                    _set_text('backdrop.gtzip', 'noi dung.Text', diem)
-                except Exception:
-                    pass
-                try:
-                    _set_text('ket qua.gtzip', 'tieu de.Text', self.tengiai_var.get())
-                except Exception:
-                    pass
-                try:
-                    _set_text('chay chu', 'Ticker1.Text', self.chuchay_var.get())
-                except Exception:
-                    pass
-            except Exception:
-                pass
-            friendly = self._friendly_network_error(e, base)
-            if tran_fmt:
-                self.status_var.set(f'Lỗi gửi {tran_fmt}: {friendly}')
-            else:
-                self.status_var.set(f'Lỗi gửi: {friendly}')
+            t = threading.Thread(target=_worker, daemon=True)
+            t.start()
+        except Exception:
+            # fallback to synchronous behavior if thread fails
+            _worker()
 
 
     def save_table_to_csv(self):
